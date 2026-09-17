@@ -4,15 +4,32 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Merkez-Ozet.ps1')
 
 $gecen = 0; $kalan = 0
+function Write-CiTestHatasi {
+    # GitHub'un ayrintili Actions gunlukleri oturum gerektirebilir. Basarisiz
+    # denetimin adi, hassas beklenen/gercek degerleri yazmadan check annotation
+    # olarak gorunsun ki CI'da hata kaynagi anlasilabilsin.
+    param([string]$Ad)
+    if ($env:GITHUB_ACTIONS -ne 'true') { return }
+    $mesaj = $Ad.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+    Write-Output "::error title=Aizen test failure::$mesaj"
+}
 function Test-Esit {
     param([string]$Ad, [object]$Beklenen, [object]$Gercek)
     if ($Beklenen -ceq $Gercek) { $script:gecen++; Write-Output "  OK  $Ad" }
-    else { $script:kalan++; Write-Output "  HATA  $Ad | beklenen=[$Beklenen] gercek=[$Gercek]" }
+    else {
+        $script:kalan++
+        Write-Output "  HATA  $Ad | beklenen=[$Beklenen] gercek=[$Gercek]"
+        Write-CiTestHatasi $Ad
+    }
 }
 function Test-Dogru {
     param([string]$Ad, [bool]$Kosul)
     if ($Kosul) { $script:gecen++; Write-Output "  OK  $Ad" }
-    else { $script:kalan++; Write-Output "  HATA  $Ad" }
+    else {
+        $script:kalan++
+        Write-Output "  HATA  $Ad"
+        Write-CiTestHatasi $Ad
+    }
 }
 function Remove-TestKlasoru {
     param([string]$Yol)
@@ -104,6 +121,7 @@ try {
 catch {
     $kalan++
     Write-Output "  HATA  Izole HTTP entegrasyonu: $($_.Exception.Message) [$($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)]"
+    Write-CiTestHatasi 'Izole HTTP entegrasyonu'
     Write-Output $_.InvocationInfo.PositionMessage
     Write-Output $_.ScriptStackTrace
 }
@@ -331,6 +349,7 @@ try {
 catch {
     $kalan++
     Write-Output "  HATA  Kayit akisi: $($_.Exception.Message) [$($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)]"
+    Write-CiTestHatasi 'Kayit akisi'
     Write-Output $_.ScriptStackTrace
 }
 finally {
@@ -442,6 +461,7 @@ try {
 catch {
     $kalan++
     Write-Output "  HATA  Kurulum akisi: $($_.Exception.Message) [$($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)]"
+    Write-CiTestHatasi 'Kurulum akisi'
 }
 finally {
     $ErrorActionPreference = 'Stop'
@@ -477,6 +497,7 @@ try {
 catch {
     $kalan++
     Write-Output "  HATA  Kayit testleri: $($_.Exception.Message)"
+    Write-CiTestHatasi 'Kayit testleri'
 }
 finally {
     if (Test-Path -LiteralPath $testKayitKok) {
@@ -540,6 +561,7 @@ try {
 catch {
     $kalan++
     Write-Output "  HATA  Paket testi: $($_.Exception.Message)"
+    Write-CiTestHatasi 'Paket testi'
 }
 finally { Remove-TestKlasoru $paketTestKok }
 
