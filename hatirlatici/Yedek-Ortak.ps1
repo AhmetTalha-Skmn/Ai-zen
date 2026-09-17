@@ -90,8 +90,14 @@ function Test-CtVeriYedegi {
 function Write-CtYedekManifesti {
     param([string]$Sahne)
     $liste = @()
+    # Goreli yol icin iki taraf da GetFullPath'ten gecer: Get-ChildItem 8.3 kisa adlari (RUNNER~1)
+    # uzun ada cevirir, Join-Path cevirmez. Eskiden uzunluk farki dosya adini kaydiriyordu
+    # ("ek/durum.json"); GitHub Actions Windows makinesinde TEMP kisa adla gelir.
+    $kok = [IO.Path]::GetFullPath($Sahne).TrimEnd('\') + '\'
     foreach ($f in @(Get-ChildItem -LiteralPath $Sahne -Recurse -File)) {
-        $ad = $f.FullName.Substring($Sahne.TrimEnd('\').Length+1).Replace('\','/')
+        $tam = [IO.Path]::GetFullPath($f.FullName)
+        if (-not $tam.StartsWith($kok, [StringComparison]::OrdinalIgnoreCase)) { throw "Yedek sahnesi disinda dosya: $tam" }
+        $ad = $tam.Substring($kok.Length).Replace('\','/')
         if ($ad -eq 'YEDEK-BILGISI.txt') { continue }
         [void](Get-CtYedekHedefi 'C:\ct-kontrol' $ad)
         $liste += [ordered]@{ yol=$ad; boyut=$f.Length; sha256=(Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }

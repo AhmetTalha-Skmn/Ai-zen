@@ -95,7 +95,24 @@ try {
     $yedekKok = Join-Path $gelKok 'yedek'
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\hatirlatici\yedek-al.ps1') -KaynakKok $kaynak -Hedef $yedekKok -Eksiksiz -Sessiz
     Test-Esit 'Yeni yedek uretimi' 0 $LASTEXITCODE
-    $zip = @(Get-ChildItem -LiteralPath $yedekKok -Filter '*.zip')[0].FullName
+    # TEMP 8.3 kisa adla gelirse (GitHub Actions'ta kullanici klasoru RUNNER~1) manifest yollari kaymamali.
+    # Kisa ad uretilemeyen diskte test atlanir; CI zaten kisa adla calisir.
+    $kisaGel = ''
+    try { $kisaGel = (& cmd.exe /c ('for %I in ("' + $gelKok + '") do @echo %~sI') | Select-Object -First 1).Trim() } catch { }
+    if ($kisaGel -and $kisaGel -ne $gelKok -and $kisaGel.Contains('~')) {
+        $kisaYedek = Join-Path $gelKok 'yedek-kisa'
+        $eskiTemp = $env:TEMP; $eskiTmp = $env:TMP
+        try {
+            $env:TEMP = $kisaGel; $env:TMP = $kisaGel
+            $r = Invoke-GelBetik @((Join-Path $PSScriptRoot '..\hatirlatici\yedek-al.ps1'), '-KaynakKok', $kaynak, '-Hedef', $kisaYedek, '-Eksiksiz', '-Sessiz')
+        }
+        finally { $env:TEMP = $eskiTemp; $env:TMP = $eskiTmp }
+        Test-Esit 'Kisa adli TEMP ile yedek uretimi (8.3)' 0 $r.Kod
+    }
+    $zipler = @(Get-ChildItem -LiteralPath $yedekKok -Filter '*.zip' -ErrorAction SilentlyContinue)
+    # Yedek uretilemediyse sonraki kontroller bos yolla OpenRead cagirip bolumun kalanini dusurmesin
+    if ($zipler.Count -eq 0) { throw 'Yedek dosyasi uretilmedi; geri yukleme kontrolleri atlandi.' }
+    $zip = $zipler[0].FullName
     $b = Test-CtVeriYedegi $zip
     Test-Dogru 'Yedek manifesti dogrulandi' $b.manifestli
     Test-Esit 'Yedek dosya sayisi' 2 $b.dosyaSayisi

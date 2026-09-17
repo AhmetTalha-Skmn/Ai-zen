@@ -34,7 +34,8 @@ import TakipCore
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
     var stopFile: URL { root.appendingPathComponent("DUR") }
-    func append(_ sample: Sample, seconds: Double, category: Category) throws {
+    // Foundation, Objective-C'nin global `Category` typedef'ini de getirir; modül adıyla nitelenir.
+    func append(_ sample: Sample, seconds: Double, category: TakipCore.Category) throws {
         let url = root.appendingPathComponent("aktivite/\(dayKey(sample.time)).csv")
         if !FileManager.default.fileExists(atPath: url.path) {
             try Data("zaman;uygulama;baslik;bosta;kategori;sure;kaynak;alanadi\n".utf8).write(to: url, options: .atomic)
