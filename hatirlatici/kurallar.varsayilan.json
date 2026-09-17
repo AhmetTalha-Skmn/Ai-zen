@@ -1,0 +1,11 @@
+﻿{
+  "calisma": { "surec": [], "baslik": [], "alanadi": [] },
+  "yasakli": { "surec": [], "baslik": [], "alanadi": [] },
+  "bilerekBelirsiz": [],
+  "belirsizSayilsin": true,
+  "aslaEngelleme": [
+    "explorer", "dwm", "winlogon", "LogonUI", "csrss", "lsass",
+    "services", "smss", "svchost", "System", "Taskmgr",
+    "ShellExperienceHost", "StartMenuExperienceHost"
+  ]
+}

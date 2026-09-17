@@ -1,0 +1,44 @@
+name: macOS derleme ve testler
+
+on:
+  push:
+    paths: ['macos/**', '.github/workflows/macos.yml']
+  pull_request:
+    paths: ['macos/**', '.github/workflows/macos.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Aynı dala art arda gönderimde eski çalışmayı iptal et: macOS dakikaları pahalı.
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: macos
+
+jobs:
+  swift:
+    name: Swift derleme, testler ve uygulama paketi
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: Araç sürümleri
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Derleme
+        run: swift build
+
+      - name: Testler (Swift birim testleri ve Windows uyumluluk testleri)
+        run: swift test
+
+      - name: Uygulama paketi (Kur.command ile aynı yol; ad hoc imza, plutil)
+        run: bash scripts/build.sh

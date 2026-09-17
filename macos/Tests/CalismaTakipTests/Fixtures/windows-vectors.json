@@ -1,0 +1,66 @@
+{
+    "surum":  1,
+    "aciklama":  "Windows uygulamasinin urettigi degerler. Baytlar base64 ya da kucuk harf hex. Ayrintilar: MACOS-INCELEME.md.",
+    "anahtarBase64":  "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "hmac":  [
+                 {
+                     "ad":  "POST govdesi (gonderilen baytlarin aynisi)",
+                     "zaman":  "1757980800",
+                     "govde":  "{\"schemaVersion\":1,\"cihazId\":\"test-pc\"}",
+                     "imzaGirdisi":  "UTF8(zaman + \"\\n\" + govde)",
+                     "imzaHex":  "c2ea52896c3143a337697bbcb6e51be256281c3d168c49f6fbdd673175d34e8a"
+                 },
+                 {
+                     "ad":  "GET: govde yerine yol + sorgu",
+                     "zaman":  "1757980800",
+                     "govde":  "/v1/toplam?tarih=2026-09-16",
+                     "imzaGirdisi":  "UTF8(zaman + \"\\n\" + govde)",
+                     "imzaHex":  "0814541514ef484a4ab330d0f8e490a09e6089656a244536b00bf43194cf6682"
+                 },
+                 {
+                     "ad":  "ASCII disi govde (UTF-8)",
+                     "zaman":  "1757980801",
+                     "govde":  "{\"ad\":\"Çalışma\"}",
+                     "imzaGirdisi":  "UTF8(zaman + \"\\n\" + govde)",
+                     "imzaHex":  "1fd0ac6ca0d8364b6829642c6cf4be2e68955745583a3de4edc30b3dc6b6bdd4"
+                 }
+             ],
+    "kodNormallestirme":  [
+                              {
+                                  "girdi":  "abcd-efgh-jkmn",
+                                  "cikti":  "ABCDEFGHJKMN"
+                              },
+                              {
+                                  "girdi":  " O1IL-2345-6789 ",
+                                  "cikti":  "011123456789"
+                              },
+                              {
+                                  "girdi":  "abcd efgh jkmn",
+                                  "cikti":  "ABCDEFGHJKMN"
+                              }
+                          ],
+    "kodOzeti":  {
+                     "aciklama":  "Merkezin kayitOzeti: PBKDF2-HMAC-SHA256(parola=UTF8(normal kod), tuz, tur) ilk 32 bayt",
+                     "kod":  "ABCDEFGHJKMN",
+                     "tuzBase64":  "EBESExQVFhcYGRobHB0eHw==",
+                     "tur":  120000,
+                     "ozetBase64":  "NYaUCp0La1kIaA+3D2OL1dBOu2nU2XK8OSEeFwV7n88="
+                 },
+    "turetilen64":  {
+                        "aciklama":  "64 bayt: ilk 32 AES-256 anahtari, son 32 HMAC anahtari",
+                        "kod":  "ABCDEFGHJKMN",
+                        "tuzBase64":  "ICEiIyQlJicoKSorLC0uLw==",
+                        "tur":  120000,
+                        "hex":  "6d4a2b2d921dbf44afd3ab6f3b331d499389f80b4eef631429fbc807cea9048517169eba5dd7324b69baabacbafc39f8d2e26666095a281cb0c6430291fcff01"
+                    },
+    "anahtarZarfi":  {
+                         "aciklama":  "POST /v1/kayit yanitindaki \"anahtar\". Once etiket = HMAC-SHA256(macAnahtari, iv + veri) sabit zamanli dogrulanir, sonra AES-256-CBC/PKCS7 cozulur.",
+                         "kod":  "ABCDEFGHJKMN",
+                         "tuz":  "ICEiIyQlJicoKSorLC0uLw==",
+                         "iv":  "ZdsDcikCezOs5302dc5P0g==",
+                         "veri":  "48d8+jXXakpRbWh94j6+WT63sHNQerhO+uqYZ6q5mbkbxUPr8ncFTHOxR+L8jywv",
+                         "etiket":  "jz/l+AtrqbbaJ3BETB1qKPOvCc1Exj896AtHzSknpuQ=",
+                         "beklenenAnahtar":  "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                         "yanlisKod":  "ABCDEFGHJKMP"
+                     }
+}

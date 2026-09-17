@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "package": "Calisma-Takip-macOS",
+  "version": "1.0.0-source",
+  "compiledOnMac": false,
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 14,
+      "sha256": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 34,
+      "sha256": "659f9e7b9d1a93a777789a0f6f26c5fff65732dfc36414bfa6e2b93977dfba54"
+    },
+    {
+      "path": "DEVIR.md",
+      "bytes": 994,
+      "sha256": "ba40cda42e45d40e80f638b3ac31ca4a1f2fde2f087ce0b170e04c49c23ebd2c"
+    },
+    {
+      "path": "DOGRULAMA.md",
+      "bytes": 3348,
+      "sha256": "304ed3f60e3d747adab32ed166b290176b00a9028446d593f85098a869b498d6"
+    },
+    {
+      "path": "GELISTIRICI-NOTLARI.md",
+      "bytes": 3806,
+      "sha256": "9e230e8ddb368dc411a883c0484528d078dd6fa14458e020c2688556cf3ab8d3"
+    },
+    {
+      "path": "Kaldir.command",
+      "bytes": 174,
+      "sha256": "d51b57e23cffc25b171d05174856d4254757afea63399a45e0826c3e6e099400"
+    },
+    {
+      "path": "Kur.command",
+      "bytes": 172,
+      "sha256": "40f40def0e83081f59087e67106143066da3940480a36154ee3e6a92380c5f67"
+    },
+    {
+      "path": "Package.swift",
+      "bytes": 640,
+      "sha256": "605af2b31106025ce85d82a033bccb1f34e25a3b7373e43deb6bb72aa8d2bf76"
+    },
+    {
+      "path": "README.md",
+      "bytes": 10228,
+      "sha256": "423ab34e1fecd61720942e1d8c77b84713337e60e717d0cd629a1f2771bcf3ed"
+    },
+    {
+      "path": "Resources/Info.plist",
+      "bytes": 1104,
+      "sha256": "3cd19e800ceb5c00d8b1f70c62968ee2403854c721517c308afdbae20fc580b7"
+    },
+    {
+      "path": "scripts/build.sh",
+      "bytes": 1617,
+      "sha256": "f248574111178f73b2bcb61857e9c0615f1124ac00b6de682a080f496434132a"
+    },
+    {
+      "path": "scripts/generate-fixture.ps1",
+      "bytes": 2647,
+      "sha256": "6b2bb778338342c0fc13f6186f0ab6114a5bd5b399713285e6ec18c086825e46"
+    },
+    {
+      "path": "scripts/kurulum.sh",
+      "bytes": 1815,
+      "sha256": "3db0d675250a89ca968ec719bfe55919f538a28c7190cdd0374596c627a3b3a5"
+    },
+    {
+      "path": "scripts/package.mjs",
+      "bytes": 4925,
+      "sha256": "ac135881f5fafd6a3df3fed74205cf6dc484ccefe245e987578f0c323f36136f"
+    },
+    {
+      "path": "scripts/verify-protocol.mjs",
+      "bytes": 2153,
+      "sha256": "8ccc755efb23e508c90f935f920f58f28973657bc26a512f8fd031a279d13fef"
+    },
+    {
+      "path": "scripts/verify-windows.ps1",
+      "bytes": 2047,
+      "sha256": "57557c411050ca8b650c04c786948a1a24915d8774d1bcd0a8aca5dc59836fc0"
+    },
+    {
+      "path": "Sources/CalismaTakip/Activity.swift",
+      "bytes": 3532,
+      "sha256": "e81bb792e6c698c6810a56963062d77facb9d62245d0a71de3702e239892f944"
+    },
+    {
+      "path": "Sources/CalismaTakip/App.swift",
+      "bytes": 19170,
+      "sha256": "1e5d4e73c170cc9bcc5bd66f00a4f8292ba384108cfa2826c9d0bd83fc991099"
+    },
+    {
+      "path": "Sources/CalismaTakip/Center.swift",
+      "bytes": 13705,
+      "sha256": "5dabc53b7c72c830ae52b73ff8d07704f1095e606c6e2d895936e3a5cf2e5bd6"
+    },
+    {
+      "path": "Sources/CalismaTakip/Client.swift",
+      "bytes": 4265,
+      "sha256": "52a025f6b89f6b164abf184525ed003a5e12614685f04bc01ee6e654974f1c99"
+    },
+    {
+      "path": "Sources/CalismaTakip/Crypto.swift",
+      "bytes": 5263,
+      "sha256": "0f9c1cbf119b9806176c87646dad979c5a59640c15b93b3f8323000f465dbce3"
+    },
+    {
+      "path": "Sources/CalismaTakip/Engine.swift",
+      "bytes": 14987,
+      "sha256": "37c927992bbb65683f49de0ba24eaa808e11bd54f3afc3aed5a42c9918268572"
+    },
+    {
+      "path": "Sources/CalismaTakip/HTTPServer.swift",
+      "bytes": 6345,
+      "sha256": "51dd0aca87a92dc1494b7673e56a2ad398c1db62ca19034fd369ee92513fbe7e"
+    },
+    {
+      "path": "Sources/CalismaTakip/Storage.swift",
+      "bytes": 8691,
+      "sha256": "67b266b19b17a3c980509a5d96ba0802c69e13fd17b9cb5e869c9574e361a2e4"
+    },
+    {
+      "path": "Sources/CalismaTakip/Warnings.swift",
+      "bytes": 2700,
+      "sha256": "934aa9de13a8cd94d66c4ef498dc9ef801248ba4301f6a04e747fc2278dd6d56"
+    },
+    {
+      "path": "Sources/CTLegacyCrypto/CTLegacyCrypto.c",
+      "bytes": 705,
+      "sha256": "ba4fa85136eefa16e46d6d63e5dabb5dcbdef3efe152af99e52be1342ab5a52f"
+    },
+    {
+      "path": "Sources/CTLegacyCrypto/include/CTLegacyCrypto.h",
+      "bytes": 405,
+      "sha256": "30dcf76595ad63b16f360a27289af9f282cb11e7efb92ef818c19ee40fda4dee"
+    },
+    {
+      "path": "Sources/TakipCore/Classifier.swift",
+      "bytes": 4965,
+      "sha256": "e37b518cc9bcdb729c45736dc2ff5ff5344f32f689bf64ef18e16d092511ac54"
+    },
+    {
+      "path": "Sources/TakipCore/Models.swift",
+      "bytes": 10778,
+      "sha256": "351c470e8463654210be0905232cbbe7b3a2ec28a2dce45264ca926abcb8e9a4"
+    },
+    {
+      "path": "Test.command",
+      "bytes": 272,
+      "sha256": "db70d67b2ac54012ce734bab4be00c15ca36b0e3cb47dcc91dfb5f156a21366b"
+    },
+    {
+      "path": "Tests/CalismaTakipTests/AppTests.swift",
+      "bytes": 8932,
+      "sha256": "13fc328733479d27f81fd4c3c3f45592a68c6ca2a111b3720b91389722e28dde"
+    },
+    {
+      "path": "Tests/CalismaTakipTests/Fixtures/windows-protocol.json",
+      "bytes": 905,
+      "sha256": "69be469e2744b1e9439d3452cee607569026b57291bb275424a84624fe592ee6"
+    },
+    {
+      "path": "Tests/TakipCoreTests/CoreTests.swift",
+      "bytes": 6364,
+      "sha256": "6fb84146d2065bcdd4afed1b3e24ecae57344231c54b2879213faf430f71ebc4"
+    }
+  ]
+}

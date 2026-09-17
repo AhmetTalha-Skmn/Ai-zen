@@ -1,0 +1,48 @@
+# Bu depo YALNIZCA YEREL. kurallar.json kişisel uygulama/site adları içerir;
+# genel bir uzak depoya (GitHub vb.) itme.
+
+# --- Kişisel ve çalışma zamanı verisi (takip sistemi üretir) ---
+hatirlatici/aktivite/
+hatirlatici/rapor/
+hatirlatici/log.txt
+hatirlatici/durum.json
+hatirlatici/gecmis.json
+hatirlatici/ayarlar.json
+hatirlatici/periyot.json
+hatirlatici/ortak-sayac.json
+hatirlatici/kural-outbox.json
+hatirlatici/izleyici.log
+hatirlatici/izleyici.pid
+hatirlatici/DUR
+hatirlatici/*.bak
+Gunluk/
+Calisma Kaydi.md
+Aktivite Gunlugu.md
+
+# --- Dağıtık katman: anahtarlar, cihaz verisi, kuyruk ---
+hatirlatici/merkez.json
+hatirlatici/onay.json
+hatirlatici/merkez-outbox/
+hatirlatici/merkez-gonderici.log
+VERI-KAPSAMI.txt
+dagitik/veri/
+dagitik/cihaz-paketleri/
+dagitik/merkez-ayarlari.json
+dagitik/merkez-kurallar.json
+dagitik/kurulum-bilgisi.json
+
+# --- Üretilen paket (dagitik/paket-olustur.ps1 yeniden üretir) ---
+dagitik/cikti/
+
+# --- Makineye özel ---
+*.lnk
+.claude/settings.local.json
+
+# --- Otomatik üretilen (git post-commit hook'u yazar) ---
+SON-DEGISIKLIKLER.md
+
+hatirlatici/GERI-YUKLEME
+geri-yukleme-yedekleri/
+
+# --- Ekran sayfasinin tek dosyalik yerel kopyasi (GitHub HTML gostermez; Aizen-Ekranlar/README.md kullanilir) ---
+Aizen-Ekranlar/*.html

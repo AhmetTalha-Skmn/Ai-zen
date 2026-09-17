@@ -1,0 +1,52 @@
+name: Windows testleri
+
+on:
+  push:
+    paths: ['hatirlatici/**', 'dagitik/**', 'uyumluluk/**', 'wiki/**', 'macos/scripts/generate-wiki.ps1', 'macos/Sources/TakipCore/WikiIcerik.swift', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['hatirlatici/**', 'dagitik/**', 'uyumluluk/**', 'wiki/**', 'macos/scripts/generate-wiki.ps1', 'macos/Sources/TakipCore/WikiIcerik.swift', '.github/workflows/windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dagitik:
+    name: Dağıtık katman, paket ve protokol vektörleri
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      # hatirlatici\test.ps1, test-api.ps1 ve test-kapsamli.ps1 çalışan bir kuruluma
+      # (Görev Zamanlayıcı görevi, çalışma zamanı dosyaları) bakar; CI'da anlamsızdır.
+      # test-dagitik.ps1 kendi geçici klasörlerinde çalışır.
+      - name: test-dagitik (Windows PowerShell 5.1, makinenin varsayılan kültürü)
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion.ToString()
+          [Globalization.CultureInfo]::CurrentCulture.Name
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File dagitik\test-dagitik.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # -match/-replace Türkçe kültürde 'I' harfini 'ı'ya katlar; bu hata sınıfı yalnız tr-TR'de görünür.
+      - name: test-dagitik (tr-TR kültürü)
+        shell: powershell
+        run: |
+          Set-Culture tr-TR
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "[Globalization.CultureInfo]::CurrentCulture.Name; & '.\dagitik\test-dagitik.ps1'; exit `$LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Kurulum türü, ayar yazımı, wiki süzme/HTML ve Mac'e üretilen wiki içeriğinin güncelliği.
+      # Geçici klasörlerde çalışır, pencere açmaz.
+      - name: test-ozellikler (tr-TR kültürü)
+        shell: powershell
+        run: |
+          Set-Culture tr-TR
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File hatirlatici\test-ozellikler.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

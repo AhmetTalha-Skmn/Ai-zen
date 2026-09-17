@@ -1,0 +1,17 @@
+{
+    "generator":  "Windows .NET PBKDF2-SHA256 / AES-256-CBC / HMAC-SHA256",
+    "code":  "ABCD1234EFGH",
+    "key":  "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "derived":  "KO30R8geg+4rR3M3Jo2GtdGRRVlvSe3CEF/7xT4rYFq/VHOgtPM5N7m/wz9ufzTGs6k8vGU6cLvU9fZzFS/EPg==",
+    "packet":  {
+                   "tuz":  "EBESExQVFhcYGRobHB0eHw==",
+                   "iv":  "ICEiIyQlJicoKSorLC0uLw==",
+                   "veri":  "8VFcJA1/35L6aRnsRsqcLTysxax3ajyoFEqnEOdyqQrIwzO71ZE7w3CFJd43CFLw",
+                   "etiket":  "gYLaMM/Eoa6pfb5XQpB9/MAIfNKiXuIylrWTZMfhiN0="
+               },
+    "timestamp":  "1789552800",
+    "body":  "{\"cihazAdi\":\"Mac Çalışma\",\"sira\":7}",
+    "signature":  "11c784709539e294147ec39f8861b33988ba6361e30cac41566d341c655654de",
+    "path":  "/v1/toplam?tarih=2026-09-16",
+    "getSignature":  "58b15d4626f533ca8f595d5eb263208b0a27609ac34cac44c37732933d654111"
+}

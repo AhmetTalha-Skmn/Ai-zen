@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>Aizen</string>
+    <key>CFBundleDisplayName</key><string>Aizen</string>
+    <key>CFBundleIdentifier</key><string>local.calisma-takip.macos</string>
+    <key>CFBundleExecutable</key><string>CalismaTakip</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>13.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>İzin verdiğiniz cihazlarla çalışma sürelerini ve ortak kuralları yerel ağda eşitlemek için kullanılır.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key><true/>
+        <key>NSAllowsArbitraryLoads</key><true/>
+    </dict>
+</dict>
+</plist>
