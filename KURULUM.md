@@ -108,8 +108,23 @@ Sihirbaz dört adımdır ([görüntüler](Aizen-Ekranlar/README.md#7-kurulum-sih
    .\dagitik\istemci-kayit.ps1 -SunucuUrl http://192.168.1.20:8787 -Kod ABCD-EFGH-JKMN
    ```
 
-5. Özetler **Aizen Merkez** kısayolundan izlenir. Bağlantı düz HTTP'dir: yalnızca aynı
-   yerel ağda ya da VPN üzerinden kullan, modemden port yönlendirme yapma.
+5. Özetler **Aizen Merkez** kısayolundan izlenir.
+
+#### Farklı ağlardaki bilgisayarlar
+
+Aktarım şifreli zarfla yapılır (eşleşme kodu ağa hiç çıkmaz), bu yüzden merkez internete
+açılabilir. İki yol var:
+
+| Yol | Ne zaman | Merkezde |
+|---|---|---|
+| **Port yönlendirme** | Modemde port açabiliyorsan | Modemde TCP 8787'yi merkez bilgisayarına yönlendir, bir dinamik DNS adı al, sonra `.\ana-kurulum.ps1 -Kur -InternetUrl http://adin.dinamikdns.net:8787` |
+| **Posta kutusu** | Port açılamıyorsa (CGNAT, mobil hat, modeme erişim yok) | Kiralık bir Linux sunucuya posta kutusunu kur ([posta-sunucusu/README.md](posta-sunucusu/README.md)), sonra `.\posta-baglan.ps1 -PostaUrl https://posta.firma.com` |
+
+`cihaz-ekle.ps1` kodla birlikte kullanılabilecek adresleri yazar: aynı ağdaki bilgisayar yerel
+adresi, farklı ağdaki bilgisayar internet ya da posta kutusu adresini (`https://.../k/...`)
+girer. Kayıttan sonra bilgisayar ağ değiştikçe doğru adresi kendisi seçer. Posta kutusunda
+özetler merkez kapalıyken bekler; eşleşme sırasında merkez bilgisayarı açık olmalıdır.
+Protokol ayrıntısı: [uyumluluk/PROTOKOL-V2.md](uyumluluk/PROTOKOL-V2.md).
 
 Merkeze giden: uygulama adı ve kategorisi, uygulama başına günlük süre, takip sağlığı.
 Gitmeyen: pencere başlıkları (yönetici ayrıca açmadıkça), tam adres, arama terimleri,

@@ -6,7 +6,8 @@ klasördeki iş akışlarını okumaz.
 | İş akışı | Ne zaman | Adımlar |
 | --- | --- | --- |
 | `macos.yml` | `macos/` değişince | `swift build` → `swift test` → `bash scripts/build.sh` (Kur.command'ın yolu: release derleme, `plutil`, ad hoc imza) |
-| `windows.yml` | `hatirlatici/`, `dagitik/`, `uyumluluk/` değişince | `dagitik\test-dagitik.ps1`, bir kez makinenin kültüründe, bir kez tr-TR kültüründe |
+| `windows.yml` | `hatirlatici/`, `dagitik/`, `uyumluluk/`, `posta-sunucusu/` değişince | `dagitik\test-dagitik.ps1` (v2 zarf ve posta kutusu uçtan uca dahil), bir kez makinenin kültüründe, bir kez tr-TR kültüründe |
+| `posta.yml` | `posta-sunucusu/` değişince | Ubuntu'da PowerShell 7 ile `posta-sunucusu/test-posta.ps1` (VPS'teki çalışma ortamı) |
 
 Sonuç GitHub'da deponun **Actions** sekmesinde görünür. Elle çalıştırmak için iş akışı sayfasında
 **Run workflow** var.
@@ -35,6 +36,10 @@ kodundan üretilir (Windows deposu varsayılan olarak `macos/`'un üst klasörü
 `Merge-YerelKurallar` ve `Protect-DagitikKodIle` olduğu gibi çalışır. Windows betiklerinde satır
 içi duran birkaç istek/yanıt ifadesi üreticide kopyalıdır; bu satırlar Windows'ta değişirse üretici
 çalışmayı reddeder.
+
+`windows-vectors.json`, `uyumluluk/protokol-vektorleri.json`'un satır sonu LF yapılmış kopyasıdır
+(v1 imza/kod vektörleri ve protokol v2 `zarfV2`/`kayitV2`). Yalnızca vektörler değiştiyse üreticinin
+son adımı yeterlidir; dosyayı elle düzenleme.
 
 Kayıt yanıtı rastgele IV taşır: her yeniden üretim bu alanı ve `windowsCommit`'i değiştirir.
 Yalnızca Windows istek/yanıt biçimi değiştiğinde yeniden üret ve commit et.

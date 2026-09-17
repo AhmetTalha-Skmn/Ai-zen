@@ -208,6 +208,18 @@ public struct Connection: Codable {
     public var lastSuccess: Date?
     public var lastRuleSuccess: Date?
     public var lastError: String = ""
+    // Protokol v2 (uyumluluk/PROTOKOL-V2.md). Eski state.json'da yoktur: nil = v1 bağlantı.
+    public var protocolVersion: Int?
+    /// Sırayla denenen doğrudan adresler (yerel ağ, internet)
+    public var directAddresses: [String]?
+    /// Doğrudan adreslere ulaşılamazsa kullanılan posta kutusu (https://sunucu/k/kutu)
+    public var mailbox: String?
+    /// Zarf sayacı; her zarfta artar ve göndermeden önce kaydedilir
+    public var counter: Int64?
+    public var lastChannel: String?
+    /// Posta kutusundan tür başına işlenen en büyük yanıt sayacı (eski yanıt yenisini geri almasın)
+    public var mailboxLastResponse: [String: Int64]?
+    public var mailboxAwaiting: Bool?
     public init(server: String, deviceID: String, deviceName: String, consentAt: Date) {
         self.server = server; self.deviceID = deviceID; self.deviceName = deviceName; self.consentAt = consentAt
     }

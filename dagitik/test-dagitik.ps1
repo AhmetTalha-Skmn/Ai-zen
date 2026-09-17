@@ -519,11 +519,12 @@ try {
     # Gelistirme makinesinde canli ayarlar.json/periyot.json vardir: bu test onlarin sizmadigini gercekten sinar
     $kisisel = @(Get-ChildItem -LiteralPath $acilan -Recurse -File | Where-Object { $_.Name -in @('kurallar.json', 'ayarlar.json', 'periyot.json', 'merkez-kurallar.json', 'kural-outbox.json', 'ortak-sayac.json', 'onay.json') })
     Test-Esit 'Pakette kisisel kural, ayar ve senkron verisi yok' 0 $kisisel.Count
-    foreach ($gerekli in @('uygulama\wiki\baslarken.md', 'uygulama\wiki\hatirlatmalar.md', 'uygulama\hatirlatici\ozellikler.ps1', 'uygulama\hatirlatici\wiki.ps1', 'uygulama\hatirlatici\ayarlar-penceresi.ps1', 'uygulama\hatirlatici\wiki-penceresi.ps1')) {
+    foreach ($gerekli in @('uygulama\wiki\baslarken.md', 'uygulama\wiki\hatirlatmalar.md', 'uygulama\hatirlatici\ozellikler.ps1', 'uygulama\hatirlatici\wiki.ps1', 'uygulama\hatirlatici\ayarlar-penceresi.ps1', 'uygulama\hatirlatici\wiki-penceresi.ps1', 'uygulama\dagitik\Istemci-Kanal.ps1', 'uygulama\dagitik\Merkez-Posta.ps1', 'uygulama\dagitik\posta-baglan.ps1')) {
         Test-Dogru "Pakette: $gerekli" (Test-Path -LiteralPath (Join-Path $acilan $gerekli))
     }
     Test-Dogru 'Pakette wiki yazar notu (README) yok' (-not (Test-Path -LiteralPath (Join-Path $acilan 'uygulama\wiki\README.md')))
     Test-Dogru 'Pakette test-ozellikler yok' (-not (Test-Path -LiteralPath (Join-Path $acilan 'uygulama\hatirlatici\test-ozellikler.ps1')))
+    Test-Dogru 'Pakette test-kanal ve posta sunucusu yok' (-not (Test-Path -LiteralPath (Join-Path $acilan 'uygulama\dagitik\test-kanal.ps1')) -and @(Get-ChildItem -LiteralPath $acilan -Recurse -File -Filter 'posta-sunucu.ps1').Count -eq 0)
     $ayarSablonu = Read-DagitikJson (Join-Path $acilan 'uygulama\hatirlatici\ayarlar.varsayilan.json')
     Test-Esit 'Notr ayar: hedef 240' 240 ([int]$ayarSablonu.hedef)
     Test-Esit 'Notr ayar: duraklatma yok' '' ([string]$ayarSablonu.duraklat)
@@ -578,5 +579,7 @@ if (Test-Path -LiteralPath $vektorPs) {
     if ($vektorKod -ne 0) { $vektorCikti | ForEach-Object { Write-Output "    $_" } }
 }
 . (Join-Path $PSScriptRoot 'test-gelistirme.ps1')
+# Protokol v2, dogrudan kayit/gonderim ve posta kutusu (uctan uca)
+. (Join-Path $PSScriptRoot 'test-kanal.ps1')
 Write-Output "Sonuc: $gecen basarili, $kalan hatali"
 if ($kalan -gt 0) { exit 1 }

@@ -1,0 +1,23 @@
+# /etc/caddy/Caddyfile
+# Alan adinin DNS A (ve varsa AAAA) kaydi bu sunucuyu gostermeli; Caddy HTTPS sertifikasini
+# Let's Encrypt'ten kendisi alir ve yeniler. posta.firma.com yerine kendi adinizi yazin.
+
+posta.firma.com {
+	# Posta kutusu sunucusu yalnizca 127.0.0.1:8790'u dinler
+	reverse_proxy 127.0.0.1:8790
+
+	# Sunucu 1,5 MB ustunu zaten reddeder; buyuk govde vekile hic girmesin
+	request_body {
+		max_size 2MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	# Erisim gunlugu bilerek kapali: Caddy'nin JSON gunlugu istek basliklarini yazar, yani
+	# X-Aizen-Jeton ve X-Aizen-Yonetim jetonlari diske duserdi. Gunluk gerekiyorsa bu
+	# basliklari 'format filter' ile silmeden acmayin.
+}

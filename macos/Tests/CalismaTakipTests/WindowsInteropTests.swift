@@ -248,4 +248,56 @@ final class WindowsInteropTests: XCTestCase {
         tampered["etiket"] = Data(repeating: 0, count: 32).base64EncodedString()
         XCTAssertThrowsError(try Crypto.open(tampered, code: envelopeCode))
     }
+
+    /// Protokol v2 (uyumluluk/PROTOKOL-V2.md): Windows'un sabit anahtar, IV ve zamanla ürettiği zarflar
+    /// Mac'te birebir yeniden üretilmeli ve açılmalı.
+    func testWindowsProtocolV2EnvelopeVectors() throws {
+        let vectors = try fixture("windows-vectors")
+        let v2 = try XCTUnwrap(vectors["zarfV2"] as? [String: Any], "windows-vectors.json v2 bölümü yok")
+        let deviceKey = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(v2["cihazAnahtariBase64"] as? String)))
+        let keys = Zarf.keys(deviceKey: deviceKey)
+        XCTAssertEqual(Zarf.hex(keys.encryption), v2["sifreHex"] as? String)
+        XCTAssertEqual(Zarf.hex(keys.signing), v2["imzaHex"] as? String)
+        XCTAssertEqual(keys.mailboxToken, v2["postaJetonu"] as? String)
+        XCTAssertEqual(Zarf.sha256Hex(Data(keys.mailboxToken.utf8)), v2["postaJetonuOzeti"] as? String)
+
+        for (name, textField) in [("istek", "istekMetni"), ("yanit", "yanitMetni")] {
+            let expected = try XCTUnwrap(v2[name] as? [String: Any])
+            let text = try XCTUnwrap(v2[textField] as? String)
+            let iv = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(expected["iv"] as? String)))
+            let device = try XCTUnwrap(expected["cihaz"] as? String)
+            let kind = try XCTUnwrap(expected["tur"] as? String)
+            let direction = try XCTUnwrap(expected["yon"] as? String)
+            let sequence = try XCTUnwrap((expected["sayac"] as? NSNumber)?.int64Value)
+            let time = try XCTUnwrap((expected["zaman"] as? NSNumber)?.int64Value)
+            let sealed = try Zarf.seal(Data(text.utf8), keys: keys, device: device, kind: kind, direction: direction, sequence: sequence, time: time, iv: iv)
+            XCTAssertEqual(sealed["veri"] as? String, expected["veri"] as? String, name)
+            XCTAssertEqual(sealed["etiket"] as? String, expected["etiket"] as? String, name)
+            XCTAssertEqual(String(data: try Zarf.open(expected, keys: keys), encoding: .utf8), text, name)
+        }
+
+        var tampered = try XCTUnwrap(v2["istek"] as? [String: Any])
+        tampered["sayac"] = 43
+        XCTAssertThrowsError(try Zarf.open(tampered, keys: keys), "Sayacı değiştirilmiş zarf reddedilmeli")
+        var textual = try XCTUnwrap(v2["istek"] as? [String: Any])
+        textual["sayac"] = "42"
+        XCTAssertFalse(Zarf.isValid(textual), "Metin sayaç geçersiz")
+        let reflected = try XCTUnwrap(v2["istek"] as? [String: Any])
+        var asReply = reflected
+        asReply["yon"] = "yanit"
+        XCTAssertThrowsError(try Zarf.open(asReply, keys: keys), "İstek yanıt diye yansıtılamaz")
+        XCTAssertThrowsError(try Zarf.open(reflected, keys: Zarf.keys(deviceKey: Data(repeating: 7, count: 32))))
+
+        let enrollment = try XCTUnwrap(vectors["kayitV2"] as? [String: Any])
+        let derived = try Zarf.enrollment(code: try XCTUnwrap(enrollment["kod"] as? String))
+        XCTAssertEqual(enrollment["tur"] as? Int, 120000)
+        XCTAssertEqual(derived.master.base64EncodedString(), enrollment["anaAnahtarBase64"] as? String)
+        XCTAssertEqual(derived.channel, enrollment["kanal"] as? String)
+        XCTAssertTrue(Zarf.isChannel(derived.channel))
+        XCTAssertEqual(Zarf.hex(derived.keys.encryption), enrollment["sifreHex"] as? String)
+        XCTAssertEqual(Zarf.hex(derived.keys.signing), enrollment["imzaHex"] as? String)
+        XCTAssertEqual(derived.keys.mailboxToken, enrollment["postaJetonu"] as? String)
+        let request = try XCTUnwrap(enrollment["istek"] as? [String: Any])
+        XCTAssertEqual(String(data: try Zarf.open(request, keys: derived.keys), encoding: .utf8), enrollment["istekMetni"] as? String)
+    }
 }

@@ -2,9 +2,9 @@ name: Windows testleri
 
 on:
   push:
-    paths: ['hatirlatici/**', 'dagitik/**', 'uyumluluk/**', 'wiki/**', 'macos/scripts/generate-wiki.ps1', 'macos/Sources/TakipCore/WikiIcerik.swift', '.github/workflows/windows.yml']
+    paths: ['hatirlatici/**', 'dagitik/**', 'uyumluluk/**', 'posta-sunucusu/**', 'wiki/**', 'macos/scripts/generate-wiki.ps1', 'macos/Sources/TakipCore/WikiIcerik.swift', '.github/workflows/windows.yml']
   pull_request:
-    paths: ['hatirlatici/**', 'dagitik/**', 'uyumluluk/**', 'wiki/**', 'macos/scripts/generate-wiki.ps1', 'macos/Sources/TakipCore/WikiIcerik.swift', '.github/workflows/windows.yml']
+    paths: ['hatirlatici/**', 'dagitik/**', 'uyumluluk/**', 'posta-sunucusu/**', 'wiki/**', 'macos/scripts/generate-wiki.ps1', 'macos/Sources/TakipCore/WikiIcerik.swift', '.github/workflows/windows.yml']
   workflow_dispatch:
 
 permissions:

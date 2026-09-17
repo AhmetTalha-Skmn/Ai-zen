@@ -62,5 +62,62 @@
                          "etiket":  "jz/l+AtrqbbaJ3BETB1qKPOvCc1Exj896AtHzSknpuQ=",
                          "beklenenAnahtar":  "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
                          "yanlisKod":  "ABCDEFGHJKMP"
-                     }
+                     },
+    "zarfV2":  {
+                   "aciklama":  "Alt anahtarlar: HMAC-SHA256(cihazAnahtari, UTF8(etiket)). Imza girdisi: UTF8(\"AIZEN-ZARF-2\\n\" + cihaz + \"\\n\" + tur + \"\\n\" + yon + \"\\n\" + sayac + \"\\n\" + zaman + \"\\n\" + iv + \"\\n\" + veri); etiket = HMAC-SHA256(imza, girdi). veri = AES-256-CBC/PKCS7(sifre, iv, UTF8(metin)).",
+                   "cihazAnahtariBase64":  "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                   "sifreEtiketi":  "Aizen|v2|sifre",
+                   "imzaEtiketi":  "Aizen|v2|imza",
+                   "postaEtiketi":  "Aizen|v2|posta",
+                   "sifreHex":  "b2a0511620ceaf177fe5556d3d194b5515c380211a07408d5ae5454eeef500ed",
+                   "imzaHex":  "58154d2ceab549dc7e419f8aa98cbbd4d065bbfa7f263e08b42d841bcc31a5a1",
+                   "postaJetonu":  "aace9abbb6d57f2dd847d839d72e928546b0f22c79e13f742efdf985a90a71e3",
+                   "postaJetonuOzeti":  "842d75d222d26aea2e5e146e0e1a01883e668a2963ebcc1ae8fe6decfd3c6f8d",
+                   "istekMetni":  "{\"ad\":\"Çalışma\",\"dakika\":42}",
+                   "istek":  {
+                                 "v":  2,
+                                 "cihaz":  "test-pc",
+                                 "tur":  "ozet",
+                                 "yon":  "istek",
+                                 "sayac":  42,
+                                 "zaman":  1757980800,
+                                 "iv":  "QEFCQ0RFRkdISUpLTE1OTw==",
+                                 "veri":  "DSabipfpFc09lLcf+PmwFEVBLe+B3v3DJtSaSHdk9VA=",
+                                 "etiket":  "gR+6uGG4heHnlr9+lFkeVoyIMmKTzxVAC2vpTyiw6zE="
+                             },
+                   "yanitMetni":  "{\"kod\":200,\"govde\":{\"ok\":true},\"adresler\":{\"sunucuUrl\":\"http://192.168.1.20:8787\",\"ekAdresler\":[],\"postaUrl\":\"\"}}",
+                   "yanit":  {
+                                 "v":  2,
+                                 "cihaz":  "test-pc",
+                                 "tur":  "ozet",
+                                 "yon":  "yanit",
+                                 "sayac":  42,
+                                 "zaman":  1757980805,
+                                 "iv":  "UFFSU1RVVldYWVpbXF1eXw==",
+                                 "veri":  "7cdufCkYCxW1+E4Z61OxuFEWhhFj5ZDyHyG18EbpbETfu1e9GYAvaeDZUB2TFDXkTeHmeVyJVm5xcAIY0Y/gdP0E5n5WEPEeS7e4XGiHgHO5FZGCfWY+VdJB5m5IruOYHNH+KBDG1SVr+3JQ2Hxuufv550VWjaonEdr82hGDq3A=",
+                                 "etiket":  "t/zzgxRGZFbbk4b6s8/6Lp4vBl2/w0jDvqluryZ2ZKs="
+                             }
+               },
+    "kayitV2":  {
+                    "aciklama":  "ana = PBKDF2-HMAC-SHA256(UTF8(normal kod), UTF8(\"Aizen|kayit|v2\"), 120000, 32); alt anahtarlar HMAC-SHA256(ana, UTF8(etiket)); kanal = \"k-\" + ilk 24 hex(HMAC(ana, \"Aizen|kayit|v2|kimlik\")).",
+                    "kod":  "ABCD-EFGH-JKMN",
+                    "tur":  120000,
+                    "anaAnahtarBase64":  "fuGy5PnN7xqsZ9MAo/50HEI0C9wlv+XgVQbydfOkVZQ=",
+                    "kanal":  "k-e474a0320db8fb1b857c007e",
+                    "sifreHex":  "65288c33f5058c4ad3b889b1aca23b57599dd804db165c6f564396d8bf314471",
+                    "imzaHex":  "53fba36f83e0553ae38cd9ca550a30393db03154cd2b1385a3d4395438eded99",
+                    "postaJetonu":  "e543be01aa24c40b79c4e17ec80f9642db893607c66a5c37b74b124cc9611afe",
+                    "istekMetni":  "{\"schemaVersion\":2,\"onay\":true,\"cihazAdi\":\"Mac\",\"kullanici\":\"test\",\"surum\":\"mac-1.0\"}",
+                    "istek":  {
+                                  "v":  2,
+                                  "cihaz":  "k-e474a0320db8fb1b857c007e",
+                                  "tur":  "kayit",
+                                  "yon":  "istek",
+                                  "sayac":  1,
+                                  "zaman":  1757980900,
+                                  "iv":  "YGFiY2RlZmdoaWprbG1ubw==",
+                                  "veri":  "XX2Lk97WwKXqHVX0DxhoF2ZbsVEGsx46dSvWRRGJkn0VxHaEIlWvQ+A9SdxwpmWWnLm6zUOx7hWEFklsTiI47hdA1m3l3Ysx/nbtYImEptzv4HAwRnCG7BJ/HxRQ2glv",
+                                  "etiket":  "hrLFGx+1omry+lfRc6rz4kgjx5IIstgIHocPGVhkW20="
+                              }
+                }
 }

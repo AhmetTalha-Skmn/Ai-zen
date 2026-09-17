@@ -171,8 +171,10 @@ if (-not (Test-DagitikCihazKimligi ([string]$ayar.cihazId))) { throw 'merkez.jso
 if ([string]::IsNullOrWhiteSpace([string]$ayar.anahtarKorunmus)) {
     throw 'merkez.json anahtari korunmus degil. Istemci kurulumunu kayit paketiyle tekrar calistirin.'
 }
-$sunucuUrl = ([string]$ayar.sunucuUrl).Trim().TrimEnd('/')
-if ($sunucuUrl -notmatch '^https?://[^/\\]+(?::\d+)?$') { throw 'merkez.json sunucuUrl gecersiz.' }
+$protokol = [int](Get-DagitikDeger $ayar 'protokol' 1)
+$sunucuUrl = ([string](Get-DagitikDeger $ayar 'sunucuUrl' '')).Trim().TrimEnd('/')
+# v2'de dogrudan adres bos olabilir (yalnizca posta kutusu)
+if ($protokol -lt 2 -and $sunucuUrl -notmatch '^https?://[^/\\]+(?::\d+)?$') { throw 'merkez.json sunucuUrl gecersiz.' }
 
 try { $anahtar = Unprotect-DagitikAnahtar -KorunmusAnahtar $ayar.anahtarKorunmus -Amac "istemci:$($ayar.cihazId)" }
 catch { throw 'Merkez anahtari bu Windows kullanicisi tarafindan acilamiyor. Istemci kurulumunu bu oturumda tekrar calistirin.' }
@@ -200,6 +202,18 @@ Set-GondericiDurumu -Ayar $ayar -Durum 'kuyrukta'
 
 if ($SadeceKuyrugaAl) {
     Write-Output "Gunluk ozet kuyruga alindi: $kuyrukYolu"
+    exit 0
+}
+
+if ($protokol -ge 2) {
+    # Sifreli zarf: dogrudan adres ya da posta kutusu (Istemci-Kanal.ps1)
+    $senkronPs = Join-Path $HatirlaticiKlasoru 'kural-senkron.ps1'
+    if (Test-Path -LiteralPath $senkronPs) { . $senkronPs }
+    . (Join-Path $PSScriptRoot 'Istemci-Kanal.ps1')
+    $gonderilen = Invoke-IstemciV2Turu -Ayar $ayar -Anahtar $anahtar
+    Write-DagitikJsonAtomik -Nesne $ayar -Yol $ayarYolu
+    if ($gonderilen -gt 0 -and [string](Get-DagitikDeger $ayar 'sonKanal' '') -eq 'posta') { Write-Output "Posta kutusuna $gonderilen gunluk ozet birakildi." }
+    elseif ($gonderilen -gt 0) { Write-Output "Merkeze $gonderilen gunluk ozet gonderildi." }
     exit 0
 }
 

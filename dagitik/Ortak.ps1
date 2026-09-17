@@ -335,3 +335,252 @@ function Unprotect-DagitikKodIle {
     }
     finally { $aes.Dispose() }
 }
+
+# ---------- protokol v2: sifreli zarf ----------
+# Ayrinti: uyumluluk/PROTOKOL-V2.md. Zarf tasimadan bagimsizdir: ayni zarf merkeze
+# dogrudan (yerel ag ya da internet) veya posta kutusu sunucusu uzerinden gider.
+# Aradaki ag ve posta kutusu icerigi okuyamaz, degistiremez.
+#   - Cihaz anahtarindan HMAC ile ayri sifreleme, imza ve posta jetonu anahtarlari turetilir.
+#   - AES-256-CBC + HMAC-SHA256 (sifre-sonra-imza). Imza, zarfin baslik alanlarini da kapsar.
+#   - Eslesme kodu v2'de aga hic cikmaz: kayit istegi ve yaniti koddan turetilen anahtarla sifrelenir.
+
+function Get-DagitikHmacBayt {
+    param([byte[]]$Anahtar, [byte[]]$Veri)
+    $hmac = New-Object System.Security.Cryptography.HMACSHA256(,$Anahtar)
+    try { return ,$hmac.ComputeHash($Veri) }
+    finally { $hmac.Dispose() }
+}
+
+function ConvertTo-DagitikHex {
+    param([byte[]]$Bayt)
+    return ([BitConverter]::ToString($Bayt)).Replace('-', '').ToLowerInvariant()
+}
+
+function Get-DagitikMetinOzeti {
+    # Posta kutusu jetonlarinin sunucuda saklanan ozeti: SHA-256(UTF8(metin)), kucuk harf hex.
+    param([Parameter(Mandatory = $true)][string]$Metin)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return (ConvertTo-DagitikHex $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Metin))) }
+    finally { $sha.Dispose() }
+}
+
+function Get-DagitikZarfAnahtarlari {
+    # Kayitli cihazin anahtari (base64, 32 bayt) -> zarf alt anahtarlari.
+    param([Parameter(Mandatory = $true)][string]$Anahtar)
+    $k = [Convert]::FromBase64String($Anahtar)
+    if ($k.Length -ne 32) { throw 'Cihaz anahtari 32 bayt olmalidir.' }
+    $utf8 = [System.Text.Encoding]::UTF8
+    return [ordered]@{
+        sifre = (Get-DagitikHmacBayt $k $utf8.GetBytes('Aizen|v2|sifre'))
+        imza = (Get-DagitikHmacBayt $k $utf8.GetBytes('Aizen|v2|imza'))
+        postaJetonu = (ConvertTo-DagitikHex (Get-DagitikHmacBayt $k $utf8.GetBytes('Aizen|v2|posta')))
+    }
+}
+
+function Get-DagitikKayitAltAnahtarlari {
+    # Kayit ana anahtari (base64, 32 bayt) -> kanal kimligi ve kayit zarfi anahtarlari.
+    # Merkez ana anahtari kod uretilirken DPAPI ile saklar; kodun kendisini saklamaz.
+    param([Parameter(Mandatory = $true)][string]$AnaAnahtar)
+    $m = [Convert]::FromBase64String($AnaAnahtar)
+    if ($m.Length -ne 32) { throw 'Kayit anahtari 32 bayt olmalidir.' }
+    $utf8 = [System.Text.Encoding]::UTF8
+    $kimlik = Get-DagitikHmacBayt $m $utf8.GetBytes('Aizen|kayit|v2|kimlik')
+    return [ordered]@{
+        anaAnahtar = $AnaAnahtar
+        kanal = 'k-' + (ConvertTo-DagitikHex $kimlik).Substring(0, 24)
+        sifre = (Get-DagitikHmacBayt $m $utf8.GetBytes('Aizen|kayit|v2|sifre'))
+        imza = (Get-DagitikHmacBayt $m $utf8.GetBytes('Aizen|kayit|v2|imza'))
+        postaJetonu = (ConvertTo-DagitikHex (Get-DagitikHmacBayt $m $utf8.GetBytes('Aizen|kayit|v2|posta')))
+    }
+}
+
+function Get-DagitikKayitAnahtarlari {
+    # ana = PBKDF2-HMAC-SHA256(UTF8(normal kod), UTF8('Aizen|kayit|v2'), 120000, 32 bayt)
+    param([Parameter(Mandatory = $true)][string]$Kod, [int]$Tur = 120000)
+    $normal = ConvertTo-DagitikKodNormal $Kod
+    if ($normal.Length -lt 8) { throw 'Kod gecersiz.' }
+    $tuz = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('Aizen|kayit|v2'))
+    $ana = Get-DagitikKodAnahtari -Kod $normal -Tuz $tuz -Tur $Tur -Uzunluk 32
+    return (Get-DagitikKayitAltAnahtarlari -AnaAnahtar ([Convert]::ToBase64String($ana)))
+}
+
+function Test-DagitikKayitKanali {
+    param([string]$Kimlik)
+    return ([string]$Kimlik -cmatch '^k-[0-9a-f]{24}$')
+}
+
+function Get-DagitikZarfSayisi {
+    # sayac ve zaman JSON'da tam sayi olmali; imza girdisine kulturden bagimsiz ondalik yazilir.
+    param([object]$Deger)
+    if (-not ($Deger -is [int] -or $Deger -is [long])) { return $null }
+    $metin = ([long]$Deger).ToString([Globalization.CultureInfo]::InvariantCulture)
+    if ($metin -cnotmatch '^[0-9]{1,15}$') { return $null }
+    return $metin
+}
+
+function Test-DagitikZarfBicimi {
+    param([object]$Zarf)
+    if ($null -eq $Zarf -or $Zarf -is [string] -or $Zarf -is [ValueType]) { return $false }
+    $v = Get-DagitikDeger $Zarf 'v' $null
+    if (-not ($v -is [int] -or $v -is [long]) -or [long]$v -ne 2) { return $false }
+    if (-not (Test-DagitikCihazKimligi ([string](Get-DagitikDeger $Zarf 'cihaz' '')))) { return $false }
+    if ([string](Get-DagitikDeger $Zarf 'tur' '') -cnotmatch '^[a-z]{2,16}$') { return $false }
+    if (@('istek', 'yanit') -cnotcontains [string](Get-DagitikDeger $Zarf 'yon' '')) { return $false }
+    foreach ($alan in @('sayac', 'zaman')) {
+        if ($null -eq (Get-DagitikZarfSayisi (Get-DagitikDeger $Zarf $alan $null))) { return $false }
+    }
+    foreach ($alan in @('iv', 'veri', 'etiket')) {
+        $deger = Get-DagitikDeger $Zarf $alan $null
+        if (-not ($deger -is [string]) -or $deger -cnotmatch '^[A-Za-z0-9+/]{4,}={0,2}$') { return $false }
+    }
+    return $true
+}
+
+function Get-DagitikZarfImzaGirdisi {
+    # UTF8("AIZEN-ZARF-2\n" + cihaz + "\n" + tur + "\n" + yon + "\n" + sayac + "\n" + zaman + "\n" + iv + "\n" + veri)
+    # iv ve veri aga giden base64 metnin aynisidir.
+    param([Parameter(Mandatory = $true)][object]$Zarf)
+    $parcalar = @(
+        'AIZEN-ZARF-2',
+        [string](Get-DagitikDeger $Zarf 'cihaz' ''),
+        [string](Get-DagitikDeger $Zarf 'tur' ''),
+        [string](Get-DagitikDeger $Zarf 'yon' ''),
+        (Get-DagitikZarfSayisi (Get-DagitikDeger $Zarf 'sayac' $null)),
+        (Get-DagitikZarfSayisi (Get-DagitikDeger $Zarf 'zaman' $null)),
+        [string](Get-DagitikDeger $Zarf 'iv' ''),
+        [string](Get-DagitikDeger $Zarf 'veri' '')
+    )
+    return ,([System.Text.Encoding]::UTF8.GetBytes(($parcalar -join "`n")))
+}
+
+function New-DagitikZarf {
+    param(
+        [Parameter(Mandatory = $true)][object]$Anahtarlar,
+        [Parameter(Mandatory = $true)][string]$Cihaz,
+        [Parameter(Mandatory = $true)][string]$Tur,
+        [ValidateSet('istek', 'yanit')][string]$Yon = 'istek',
+        [long]$Sayac = 0,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Metin,
+        [long]$Zaman = 0,
+        # Yalnizca sabit test vektorleri icin; normalde her zarfta rastgele IV uretilir.
+        [byte[]]$SabitIv
+    )
+    if (-not (Test-DagitikCihazKimligi $Cihaz)) { throw 'Zarf cihaz kimligi gecersiz.' }
+    if ($Tur -cnotmatch '^[a-z]{2,16}$') { throw 'Zarf turu gecersiz.' }
+    if ($Sayac -lt 0) { throw 'Zarf sayaci gecersiz.' }
+    if ($Zaman -le 0) { $Zaman = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() }
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    try {
+        $aes.KeySize = 256
+        $aes.Key = [byte[]]$Anahtarlar.sifre
+        $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+        $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
+        if ($null -ne $SabitIv -and $SabitIv.Length -eq 16) { $aes.IV = $SabitIv } else { $aes.GenerateIV() }
+        $sifreleyici = $aes.CreateEncryptor()
+        try {
+            $duz = [System.Text.Encoding]::UTF8.GetBytes($Metin)
+            $sifreli = $sifreleyici.TransformFinalBlock($duz, 0, $duz.Length)
+        }
+        finally { $sifreleyici.Dispose() }
+        $zarf = [ordered]@{
+            v = 2
+            cihaz = $Cihaz
+            tur = $Tur
+            yon = $Yon
+            sayac = [long]$Sayac
+            zaman = [long]$Zaman
+            iv = [Convert]::ToBase64String($aes.IV)
+            veri = [Convert]::ToBase64String($sifreli)
+            etiket = ''
+        }
+        $zarf.etiket = [Convert]::ToBase64String((Get-DagitikHmacBayt ([byte[]]$Anahtarlar.imza) (Get-DagitikZarfImzaGirdisi $zarf)))
+        return $zarf
+    }
+    finally { $aes.Dispose() }
+}
+
+function Open-DagitikZarf {
+    # Once imza sabit zamanli dogrulanir; tutmazsa cozme denenmez. Duz metni doner.
+    param(
+        [Parameter(Mandatory = $true)][object]$Anahtarlar,
+        [Parameter(Mandatory = $true)][object]$Zarf
+    )
+    if (-not (Test-DagitikZarfBicimi $Zarf)) { throw 'Zarf bicimi gecersiz.' }
+    $iv = [Convert]::FromBase64String([string](Get-DagitikDeger $Zarf 'iv' ''))
+    $sifreli = [Convert]::FromBase64String([string](Get-DagitikDeger $Zarf 'veri' ''))
+    $etiket = [Convert]::FromBase64String([string](Get-DagitikDeger $Zarf 'etiket' ''))
+    if ($iv.Length -ne 16 -or $etiket.Length -ne 32 -or $sifreli.Length -eq 0 -or ($sifreli.Length % 16) -ne 0) {
+        throw 'Zarf bicimi gecersiz.'
+    }
+    $beklenen = Get-DagitikHmacBayt ([byte[]]$Anahtarlar.imza) (Get-DagitikZarfImzaGirdisi $Zarf)
+    if (-not (Test-DagitikBaytEsitlik $beklenen $etiket)) { throw 'Zarf imzasi gecersiz.' }
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    try {
+        $aes.KeySize = 256
+        $aes.Key = [byte[]]$Anahtarlar.sifre
+        $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+        $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
+        $aes.IV = $iv
+        $cozucu = $aes.CreateDecryptor()
+        try { $duz = $cozucu.TransformFinalBlock($sifreli, 0, $sifreli.Length) }
+        finally { $cozucu.Dispose() }
+        return (New-Object System.Text.UTF8Encoding($false, $true)).GetString($duz)
+    }
+    finally { $aes.Dispose() }
+}
+
+function ConvertTo-DagitikZarfJson {
+    param([Parameter(Mandatory = $true)][object]$Zarf)
+    return ($Zarf | ConvertTo-Json -Depth 3 -Compress)
+}
+
+# ---------- merkez adresleri ----------
+# Dogrudan : http(s)://sunucu[:port]             (yerel ag ya da port yonlendirme)
+# Posta    : https://sunucu[:port]/k/<kutu>       (kutu: 16-64 hex; merkez kapaliyken paketler bekler)
+function ConvertFrom-DagitikAdres {
+    param([string]$Adres)
+    $metin = ([string]$Adres).Trim().TrimEnd('/')
+    if ($metin.Length -gt 300) { return $null }
+    $sema = '^(?<kok>[Hh][Tt][Tt][Pp][Ss]?://[^/\\\s?#@]+)'
+    if ($metin -cmatch ($sema + '/[Kk]/(?<kutu>[0-9A-Fa-f]{16,64})$')) {
+        $kok = $Matches['kok']
+        $kutu = $Matches['kutu'].ToLowerInvariant()
+        $kok = $kok.Substring(0, $kok.IndexOf('://')).ToLowerInvariant() + $kok.Substring($kok.IndexOf('://'))
+        return [ordered]@{ tur = 'posta'; kok = $kok; kutu = $kutu; adres = "$kok/k/$kutu" }
+    }
+    if ($metin -cmatch ($sema + '$')) {
+        $kok = $Matches['kok']
+        $kok = $kok.Substring(0, $kok.IndexOf('://')).ToLowerInvariant() + $kok.Substring($kok.IndexOf('://'))
+        return [ordered]@{ tur = 'dogrudan'; kok = $kok; kutu = ''; adres = $kok }
+    }
+    return $null
+}
+
+function Test-DagitikGuvenliPostaKoku {
+    # Posta kutusu jetonlari yalnizca HTTPS ile gider; duz HTTP yalnizca bu bilgisayar (test) icin.
+    param([string]$Kok)
+    if ([string]$Kok -cmatch '^https://') { return $true }
+    return ([string]$Kok -cmatch '^http://(127\.0\.0\.1|localhost|\[::1\])(:[0-9]{1,5})?$')
+}
+
+function Test-DagitikYerelAdres {
+    # Yerel ag ve VPN: loopback, 10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10 (CGNAT,
+    # Tailscale), IPv6 ULA (fc00::/7) ve link-local. Port yonlendirmeyle gelen adres bunlardan degildir.
+    param([System.Net.IPAddress]$Adres)
+    if ($null -eq $Adres) { return $false }
+    if ([System.Net.IPAddress]::IsLoopback($Adres)) { return $true }
+    $b = $Adres.GetAddressBytes()
+    if ($Adres.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+        if ($b[0] -eq 10) { return $true }
+        if ($b[0] -eq 172 -and $b[1] -ge 16 -and $b[1] -le 31) { return $true }
+        if ($b[0] -eq 192 -and $b[1] -eq 168) { return $true }
+        if ($b[0] -eq 169 -and $b[1] -eq 254) { return $true }
+        if ($b[0] -eq 100 -and $b[1] -ge 64 -and $b[1] -le 127) { return $true }
+        return $false
+    }
+    if ($Adres.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+        if ($Adres.IsIPv6LinkLocal) { return $true }
+        if (($b[0] -band 0xFE) -eq 0xFC) { return $true }
+    }
+    return $false
+}

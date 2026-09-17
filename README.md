@@ -65,6 +65,12 @@ listeleyen onay ekranını kabul eder. Onay yoksa bağlantı kurulmaz, sistem te
 başına çalışır. Varsayılan aktarım yalnızca uygulama, kategori ve süre özetidir;
 pencere başlığı, tam URL, arama, tuş kaydı ve ekran görüntüsü gönderilmez.
 
+Bilgisayarlar farklı ağlarda olabilir: aktarım şifreli zarfla yapılır (eşleşme kodu
+ağa hiç çıkmaz), merkez port yönlendirmeyle internete açılabilir ya da port
+açılamıyorsa kiralık bir Linux sunucudaki **posta kutusu** kullanılır
+([posta-sunucusu/](posta-sunucusu/README.md)). Posta kutusu zarfları taşır,
+içeriklerini okuyamaz; merkez kapalıyken özetler orada bekler.
+
 Kurulum, panel, kaldırma, ağ sınırı ve güvenlik için
 [dağıtık sistem kılavuzuna](dagitik/README.md) bak.
 

@@ -2,6 +2,31 @@ import XCTest
 @testable import TakipCore
 
 final class CoreTests: XCTestCase {
+    /// Windows ConvertFrom-DagitikAdres ile aynı sonuçlar (dagitik/test-kanal.ps1).
+    func testCenterAddressParsing() throws {
+        let mailbox = try XCTUnwrap(CenterAddress.parse(" HTTPS://Posta.Ornek.com/K/0123456789ABCDEF/ "))
+        XCTAssertEqual(mailbox.kind, .mailbox)
+        XCTAssertEqual(mailbox.text, "https://Posta.Ornek.com/k/0123456789abcdef")
+        XCTAssertTrue(mailbox.isSecureTransport)
+        XCTAssertEqual(CenterAddress.parse("http://192.168.1.20:8787")?.kind, .direct)
+        XCTAssertNil(CenterAddress.parse("http://192.168.1.20:8787/v1"))
+        XCTAssertNil(CenterAddress.parse("https://a:b@posta.ornek.com/k/0123456789abcdef"))
+        XCTAssertNil(CenterAddress.parse("https://posta.ornek.com/k/0123"))
+        XCTAssertNil(CenterAddress.parse("ftp://posta.ornek.com"))
+        XCTAssertFalse(try XCTUnwrap(CenterAddress.parse("http://posta.ornek.com/k/0123456789abcdef")).isSecureTransport)
+        XCTAssertTrue(try XCTUnwrap(CenterAddress.parse("http://127.0.0.1:9000/k/0123456789abcdef")).isSecureTransport)
+        XCTAssertTrue(try XCTUnwrap(CenterAddress.parse("http://127.0.0.1:8787")).isLoopback)
+    }
+    func testCenterAddressMergeKeepsWorkingAddressAndSkipsCenterLoopback() {
+        let reported: [String: Any] = ["sunucuUrl": "http://127.0.0.1:8787", "ekAdresler": ["http://ad.example.test:8787"], "postaUrl": "https://posta.example.test/k/0123456789abcdef"]
+        let merged = CenterAddress.merge(reported: reported, direct: ["http://192.168.1.20:8787"], mailbox: nil, used: "http://192.168.1.20:8787")
+        XCTAssertEqual(merged.direct, ["http://192.168.1.20:8787", "http://ad.example.test:8787"])
+        XCTAssertEqual(merged.mailbox, "https://posta.example.test/k/0123456789abcdef")
+        let unchanged = CenterAddress.merge(reported: nil, direct: ["http://a.test"], mailbox: "https://p.test/k/0123456789abcdef", used: nil)
+        XCTAssertEqual(unchanged.direct, ["http://a.test"])
+        let insecure = CenterAddress.merge(reported: ["postaUrl": "http://p.test/k/0123456789abcdef"], direct: [], mailbox: nil, used: nil)
+        XCTAssertNil(insecure.mailbox, "HTTPS olmayan posta kutusu alınmaz")
+    }
     func testNeutralRules() {
         let rules = Rules()
         XCTAssertTrue(rules.rows.isEmpty)

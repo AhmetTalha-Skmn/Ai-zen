@@ -400,6 +400,8 @@ try {
         Write-Host "  cd `"$dagitikKoku`""
         Write-Host "  .\cihaz-ekle.ps1 -Ad 'Ofis-PC-01'"
         Write-Host 'Kodu kullanıcıya söyle; o kendi bilgisayarında Kurulum-Kullanici.cmd çalıştırıp girsin.'
+        Write-Host 'Farklı ağdaki bilgisayarlar için: posta kutusu sunucusu kur (Aizen deposu: posta-sunucusu/README.md), sonra'
+        Write-Host "  .\posta-baglan.ps1 -PostaUrl https://posta.firma.com"
         Write-Host 'Özetleri masaüstündeki "Aizen Merkez" kısayolundan izleyebilirsin.'
     }
     else {
@@ -421,7 +423,7 @@ try {
                 Write-Host ''
                 $cevap = Read-Host 'Bu bilgisayar bir yönetici merkezine bağlansın mı? (E/h)'
                 if ($cevap.Trim().ToUpperInvariant() -in @('E', 'EVET', 'Y', 'YES')) {
-                    if ([string]::IsNullOrWhiteSpace($SunucuUrl)) { $SunucuUrl = Read-Host 'Merkez adresi (örnek: http://192.168.1.20:8787)' }
+                    if ([string]::IsNullOrWhiteSpace($SunucuUrl)) { $SunucuUrl = Read-Host 'Merkez adresi (aynı ağ: http://192.168.1.20:8787, farklı ağ: https://posta.firma.com/k/...)' }
                     $Kod = Read-Host 'Yöneticinin verdiği eşleşme kodu'
                 }
             }

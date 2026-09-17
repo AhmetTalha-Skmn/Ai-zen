@@ -178,6 +178,186 @@ import TakipCore
         }
     }
     func sync() async {
+        guard let connection = state.connection, !busy else { return }
+        if (connection.protocolVersion ?? 1) >= 2 { await syncV2() } else { await syncV1() }
+    }
+    /// Protokol v2 (uyumluluk/PROTOKOL-V2.md §7): önce doğrudan adresler, ulaşılamazsa posta kutusu.
+    private func syncV2() async {
+        guard var connection = state.connection, !busy else { return }
+        busy = true; defer { busy = false }
+        var failures: [String] = []
+        let keys: ZarfKeys
+        do { keys = Zarf.keys(deviceKey: try Secrets.get("client:" + connection.deviceID)) }
+        catch {
+            connection.lastError = error.localizedDescription
+            let snapshot = connection
+            action { try mutate { $0.connection = snapshot } }
+            return
+        }
+        var root: String?
+        for candidate in connection.directAddresses ?? [] where root == nil {
+            if await client.isV2Center(candidate) { root = candidate }
+        }
+        var mailbox: CenterAddress?
+        if let text = connection.mailbox, let address = CenterAddress.parse(text), address.kind == .mailbox, address.isSecureTransport { mailbox = address }
+        var directWorked = false
+        if let root {
+            do {
+                failures = try await directRound(root: root, keys: keys, connection: &connection)
+                connection.lastChannel = "dogrudan"
+                directWorked = true
+                if let mailbox, connection.mailboxAwaiting == true {
+                    var ignored: [String] = []
+                    try? await mailboxReplies(mailbox, keys: keys, connection: &connection, failures: &ignored)
+                }
+            } catch { failures = ["Doğrudan bağlantı: " + safeNetworkError(error)] }
+        }
+        if !directWorked {
+            if let mailbox {
+                do {
+                    failures = try await mailboxRound(mailbox, keys: keys, connection: &connection)
+                    connection.lastChannel = "posta"
+                } catch { failures.append("Posta kutusu: " + safeNetworkError(error)) }
+            } else if root == nil {
+                failures.append("Merkeze ulaşılamadı: doğrudan adres yanıt vermedi, posta kutusu tanımlı değil.")
+            }
+        }
+        connection.lastError = failures.joined(separator: " | ")
+        let snapshot = connection
+        action { try mutate { $0.connection = snapshot } }
+    }
+    /// Sayaç zarf gönderilmeden kaydedilir: çökme sonrası aynı sayaç yeniden kullanılmaz.
+    private func nextCounter(_ connection: inout Connection) throws -> Int64 {
+        let next = (connection.counter ?? 0) + 1
+        connection.counter = next
+        let snapshot = connection
+        try mutate { $0.connection = snapshot }
+        return next
+    }
+    private func applyAddresses(_ reported: [String: Any]?, used: String?, connection: inout Connection) {
+        let merged = CenterAddress.merge(reported: reported, direct: connection.directAddresses ?? [], mailbox: connection.mailbox, used: used)
+        connection.directAddresses = merged.direct
+        connection.mailbox = merged.mailbox
+    }
+    private func applyRules(_ reply: EnvelopeReply, connection: inout Connection, failures: inout [String]) throws {
+        guard reply.status == 200, reply.body["ok"] as? Bool == true else { failures.append("Kural alımı: merkez HTTP \(reply.status) döndürdü."); return }
+        let data = try JSONSerialization.data(withJSONObject: reply.body)
+        let rules = try storage.decoder.decode(SharedRules.self, from: data)
+        try mutate { next in
+            next.rules.merge(rules)
+            for change in next.pending { next.rules.apply(change) }
+        }
+        connection.lastRuleSuccess = Date()
+    }
+    private func applyTotal(_ reply: EnvelopeReply, day: String, failures: inout [String]) throws {
+        guard reply.status == 200, reply.body["ok"] as? Bool == true, reply.body["tarih"] as? String == day,
+              let minutes = reply.body["digerCihazDk"] as? Int else { failures.append("Ortak sayaç: yanıt geçersiz."); return }
+        // Posta kutusunda bekleyen yanıt bayat toplamı taze göstermesin: merkezin yanıt zamanı esas alınır
+        let produced = Date(timeIntervalSince1970: TimeInterval(reply.time))
+        let updated = min(Date(), produced)
+        try mutate { $0.sharedTotal = SharedTotal(date: day, otherMinutes: minutes, updated: updated) }
+    }
+    /// Ağ ya da doğrulama hatası fırlatılır (çağıran posta kutusuna geçer); merkezin reddi başarısızlık listesine yazılır.
+    private func directRound(root: String, keys: ZarfKeys, connection: inout Connection) async throws -> [String] {
+        var failures: [String] = []
+        let days = Array(Set(state.dirtyDays + [dayKey(Date())])).sorted().prefix(30)
+        for key in days {
+            guard let day = state.days[key] else { continue }
+            connection.sequence += 1
+            let counter = try nextCounter(&connection)
+            let body = try Wire.json(Wire.body(day: day, connection: connection, target: state.settings.targetMinutes, pending: state.pending.count, now: Date()))
+            let reply = try await client.direct(root: root, keys: keys, device: connection.deviceID, kind: "ozet", sequence: counter, plain: body)
+            applyAddresses(reply.addresses, used: root, connection: &connection)
+            guard reply.status == 200, reply.body["ok"] as? Bool == true else { failures.append("Özet: merkez HTTP \(reply.status) döndürdü."); break }
+            connection.lastSuccess = Date()
+            let snapshot = connection
+            try mutate { next in
+                // Ağ isteği sırasında yeni ölçüm almış gün kuyruktan düşmesin.
+                if next.days[key]?.lastSample == day.lastSample { next.dirtyDays.removeAll { $0 == key } }
+                next.connection = snapshot
+            }
+        }
+        let sent = state.pending
+        if !sent.isEmpty {
+            let decisions = sent.map { ["oge": $0.oge, "tur": $0.tur.rawValue, "karar": $0.karar.rawValue] }
+            let body = try Wire.json(["schemaVersion": 1, "cihazId": connection.deviceID, "kararlar": decisions])
+            let counter = try nextCounter(&connection)
+            let reply = try await client.direct(root: root, keys: keys, device: connection.deviceID, kind: "kural", sequence: counter, plain: body)
+            if reply.status == 200, reply.body["ok"] as? Bool == true, reply.body["hatali"] as? Int == 0 {
+                let ids = Set(sent.map(\.id)); try mutate { $0.pending.removeAll { ids.contains($0.id) } }
+            } else if reply.status == 403 {
+                try mutate { $0.pending.removeAll() }
+                information = "Merkezde kural yazma yetkisi yok; bekleyen kararlar temizlendi."
+            } else { failures.append("Kural gönderimi: merkez HTTP \(reply.status) döndürdü.") }
+        }
+        let rulesCounter = try nextCounter(&connection)
+        let rulesReply = try await client.direct(root: root, keys: keys, device: connection.deviceID, kind: "kurallar", sequence: rulesCounter, plain: Data("{}".utf8))
+        try applyRules(rulesReply, connection: &connection, failures: &failures)
+        let today = dayKey(Date())
+        let totalCounter = try nextCounter(&connection)
+        let totalReply = try await client.direct(root: root, keys: keys, device: connection.deviceID, kind: "toplam", sequence: totalCounter, plain: try Wire.json(["tarih": today]))
+        try applyTotal(totalReply, day: today, failures: &failures)
+        return failures
+    }
+    private func mailboxReplies(_ mailbox: CenterAddress, keys: ZarfKeys, connection: inout Connection, failures: inout [String]) async throws {
+        let replies = try await client.mailboxReplies(mailbox, keys: keys, device: connection.deviceID)
+        var last = connection.mailboxLastResponse ?? [:]
+        for item in replies {
+            guard item.sequence > (last[item.kind] ?? 0) else { continue }
+            last[item.kind] = item.sequence
+            connection.mailboxLastResponse = last
+            applyAddresses(item.reply.addresses, used: nil, connection: &connection)
+            switch item.kind {
+            case "ozet":
+                if item.reply.status == 200 { connection.lastSuccess = Date() }
+            case "kural":
+                if item.reply.status == 403 { information = "Merkezde kural yazma yetkisi yok." }
+            case "kurallar":
+                try applyRules(item.reply, connection: &connection, failures: &failures)
+            case "toplam":
+                if let day = item.reply.body["tarih"] as? String, day == dayKey(Date()) { try applyTotal(item.reply, day: day, failures: &failures) }
+            default:
+                break
+            }
+        }
+        if replies.isEmpty { connection.mailboxAwaiting = false }
+    }
+    /// Önceki turların yanıtları alınır; özetler, kararlar ve okuma istekleri kutuya bırakılır.
+    private func mailboxRound(_ mailbox: CenterAddress, keys: ZarfKeys, connection: inout Connection) async throws -> [String] {
+        var failures: [String] = []
+        do { try await mailboxReplies(mailbox, keys: keys, connection: &connection, failures: &failures) }
+        catch { failures.append("Posta kutusu yanıtları: " + safeNetworkError(error)) }
+        let days = Array(Set(state.dirtyDays + [dayKey(Date())])).sorted().prefix(30)
+        for key in days {
+            guard let day = state.days[key] else { continue }
+            connection.sequence += 1
+            let counter = try nextCounter(&connection)
+            let body = try Wire.json(Wire.body(day: day, connection: connection, target: state.settings.targetMinutes, pending: state.pending.count, now: Date()))
+            // Aynı günün eski özeti kutuda yenisiyle değişir
+            try await client.mailboxPost(mailbox, keys: keys, device: connection.deviceID, kind: "ozet", sequence: counter, plain: body, coalesce: "ozet-" + key)
+            connection.mailboxAwaiting = true
+            let snapshot = connection
+            try mutate { next in
+                if next.days[key]?.lastSample == day.lastSample { next.dirtyDays.removeAll { $0 == key } }
+                next.connection = snapshot
+            }
+        }
+        let sent = state.pending
+        if !sent.isEmpty {
+            let decisions = sent.map { ["oge": $0.oge, "tur": $0.tur.rawValue, "karar": $0.karar.rawValue] }
+            let body = try Wire.json(["schemaVersion": 1, "cihazId": connection.deviceID, "kararlar": decisions])
+            let counter = try nextCounter(&connection)
+            try await client.mailboxPost(mailbox, keys: keys, device: connection.deviceID, kind: "kural", sequence: counter, plain: body, coalesce: "")
+            let ids = Set(sent.map(\.id)); try mutate { $0.pending.removeAll { ids.contains($0.id) } }
+        }
+        let rulesCounter = try nextCounter(&connection)
+        try await client.mailboxPost(mailbox, keys: keys, device: connection.deviceID, kind: "kurallar", sequence: rulesCounter, plain: Data("{}".utf8), coalesce: "kurallar")
+        let totalCounter = try nextCounter(&connection)
+        try await client.mailboxPost(mailbox, keys: keys, device: connection.deviceID, kind: "toplam", sequence: totalCounter, plain: try Wire.json(["tarih": dayKey(Date())]), coalesce: "toplam")
+        connection.mailboxAwaiting = true
+        return failures
+    }
+    private func syncV1() async {
         guard var connection = state.connection, !busy else { return }
         busy = true; defer { busy = false }; var failures: [String] = []
         let days = Array(Set(state.dirtyDays + [dayKey(Date())])).sorted().prefix(30)

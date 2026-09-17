@@ -27,7 +27,53 @@ function ConvertTo-Hex {
     return ([BitConverter]::ToString($Bayt)).Replace('-', '').ToLowerInvariant()
 }
 
+function New-V2Vektorleri {
+    # Protokol v2 (PROTOKOL-V2.md): sabit anahtar, IV ve zamanla uretilen zarflar birebir tekrar uretilebilmeli.
+    $anahtar = [Convert]::ToBase64String((Get-SiraliBayt 0 32))
+    $k = Get-DagitikZarfAnahtarlari $anahtar
+    $turkce = '{"ad":"' + [char]0x00C7 + 'al' + [char]0x0131 + [char]0x015F + 'ma","dakika":42}'
+    $istek = New-DagitikZarf -Anahtarlar $k -Cihaz 'test-pc' -Tur 'ozet' -Yon 'istek' -Sayac 42 -Zaman 1757980800 -Metin $turkce -SabitIv (Get-SiraliBayt 64 16)
+    $yanitMetni = '{"kod":200,"govde":{"ok":true},"adresler":{"sunucuUrl":"http://192.168.1.20:8787","ekAdresler":[],"postaUrl":""}}'
+    $yanit = New-DagitikZarf -Anahtarlar $k -Cihaz 'test-pc' -Tur 'ozet' -Yon 'yanit' -Sayac 42 -Zaman 1757980805 -Metin $yanitMetni -SabitIv (Get-SiraliBayt 80 16)
+    $kod = 'ABCD-EFGH-JKMN'
+    $kayit = Get-DagitikKayitAnahtarlari -Kod $kod
+    $kayitMetni = '{"schemaVersion":2,"onay":true,"cihazAdi":"Mac","kullanici":"test","surum":"mac-1.0"}'
+    $kayitZarfi = New-DagitikZarf -Anahtarlar $kayit -Cihaz $kayit.kanal -Tur 'kayit' -Yon 'istek' -Sayac 1 -Zaman 1757980900 -Metin $kayitMetni -SabitIv (Get-SiraliBayt 96 16)
+    return [ordered]@{
+        zarfV2 = [ordered]@{
+            aciklama = 'Alt anahtarlar: HMAC-SHA256(cihazAnahtari, UTF8(etiket)). Imza girdisi: UTF8("AIZEN-ZARF-2\n" + cihaz + "\n" + tur + "\n" + yon + "\n" + sayac + "\n" + zaman + "\n" + iv + "\n" + veri); etiket = HMAC-SHA256(imza, girdi). veri = AES-256-CBC/PKCS7(sifre, iv, UTF8(metin)).'
+            cihazAnahtariBase64 = $anahtar
+            sifreEtiketi = 'Aizen|v2|sifre'
+            imzaEtiketi = 'Aizen|v2|imza'
+            postaEtiketi = 'Aizen|v2|posta'
+            sifreHex = (ConvertTo-Hex $k.sifre)
+            imzaHex = (ConvertTo-Hex $k.imza)
+            postaJetonu = $k.postaJetonu
+            postaJetonuOzeti = (Get-DagitikMetinOzeti $k.postaJetonu)
+            istekMetni = $turkce
+            istek = $istek
+            yanitMetni = $yanitMetni
+            yanit = $yanit
+        }
+        kayitV2 = [ordered]@{
+            aciklama = 'ana = PBKDF2-HMAC-SHA256(UTF8(normal kod), UTF8("Aizen|kayit|v2"), 120000, 32); alt anahtarlar HMAC-SHA256(ana, UTF8(etiket)); kanal = "k-" + ilk 24 hex(HMAC(ana, "Aizen|kayit|v2|kimlik")).'
+            kod = $kod
+            tur = 120000
+            anaAnahtarBase64 = $kayit.anaAnahtar
+            kanal = $kayit.kanal
+            sifreHex = (ConvertTo-Hex $kayit.sifre)
+            imzaHex = (ConvertTo-Hex $kayit.imza)
+            postaJetonu = $kayit.postaJetonu
+            istekMetni = $kayitMetni
+            istek = $kayitZarfi
+        }
+    }
+}
+
 if ($Uret) {
+    # v1 bolumleri mevcutsa korunur (anahtar zarfi rastgele IV'lidir; gereksiz fark uretmesin)
+    $mevcut = $null
+    if (Test-Path -LiteralPath $jsonYolu) { $mevcut = Get-Content -LiteralPath $jsonYolu -Raw -Encoding UTF8 | ConvertFrom-Json }
     $anahtar = [Convert]::ToBase64String((Get-SiraliBayt 0 32))
     $kayitTuzu = [Convert]::ToBase64String((Get-SiraliBayt 16 16))
     $sifreTuzu = [Convert]::ToBase64String((Get-SiraliBayt 32 16))
@@ -40,6 +86,7 @@ if ($Uret) {
         @('ASCII disi govde (UTF-8)', '1757980801', $turkce)
     )
     $zarf = Protect-DagitikKodIle -Metin $anahtar -Kod $kod -Tuz $sifreTuzu
+    if ($null -ne $mevcut -and $null -ne $mevcut.anahtarZarfi) { $zarf = $mevcut.anahtarZarfi }
     $vektorler = [ordered]@{
         surum = 1
         aciklama = 'Windows uygulamasinin urettigi degerler. Baytlar base64 ya da kucuk harf hex. Ayrintilar: MACOS-INCELEME.md.'
@@ -81,6 +128,8 @@ if ($Uret) {
             yanlisKod = 'ABCDEFGHJKMP'
         }
     }
+    $v2 = New-V2Vektorleri
+    foreach ($ad in $v2.Keys) { $vektorler[$ad] = $v2[$ad] }
     $json = ConvertTo-Json -InputObject $vektorler -Depth 6
     [IO.File]::WriteAllText($jsonYolu, $json, (New-Object Text.UTF8Encoding($false)))
     Write-Output "Uretildi: $jsonYolu"
@@ -118,6 +167,43 @@ $kurcalanmis = [pscustomobject]@{ iv = $z.iv; veri = $z.veri; etiket = [Convert]
 $reddedildi = $false
 try { [void](Unprotect-DagitikKodIle -Paket $kurcalanmis -Kod $z.kod -Tuz $z.tuz) } catch { $reddedildi = $true }
 if (-not $reddedildi) { $hatalar += 'Kurcalanmis etiketli zarf reddedilmedi' }
+
+# ---- protokol v2 ----
+$z2 = $v.zarfV2
+if ($null -eq $z2 -or $null -eq $v.kayitV2) { $hatalar += 'v2 vektorleri eksik (-Uret ile uretin)' }
+else {
+    $k2 = Get-DagitikZarfAnahtarlari $z2.cihazAnahtariBase64
+    $kontrol++
+    if ((ConvertTo-Hex $k2.sifre) -cne $z2.sifreHex -or (ConvertTo-Hex $k2.imza) -cne $z2.imzaHex -or $k2.postaJetonu -cne $z2.postaJetonu) { $hatalar += 'v2 alt anahtarlari' }
+    $kontrol++
+    if ((Get-DagitikMetinOzeti $z2.postaJetonu) -cne $z2.postaJetonuOzeti) { $hatalar += 'v2 posta jetonu ozeti' }
+    foreach ($parca in @(@('istek', $z2.istek, $z2.istekMetni), @('yanit', $z2.yanit, $z2.yanitMetni))) {
+        $beklenen = $parca[1]
+        $kontrol++
+        $uretilen = New-DagitikZarf -Anahtarlar $k2 -Cihaz $beklenen.cihaz -Tur $beklenen.tur -Yon $beklenen.yon -Sayac ([long]$beklenen.sayac) `
+            -Zaman ([long]$beklenen.zaman) -Metin $parca[2] -SabitIv ([Convert]::FromBase64String($beklenen.iv))
+        if ($uretilen.veri -cne $beklenen.veri -or $uretilen.etiket -cne $beklenen.etiket) { $hatalar += "v2 zarf uretimi ($($parca[0]))" }
+        $kontrol++
+        try { if ((Open-DagitikZarf -Anahtarlar $k2 -Zarf $beklenen) -cne $parca[2]) { $hatalar += "v2 zarf cozumu ($($parca[0]))" } }
+        catch { $hatalar += "v2 zarf acilamadi ($($parca[0])): $($_.Exception.Message)" }
+    }
+    $kontrol++
+    $kurcalanmis = $z2.istek | ConvertTo-Json -Compress | ConvertFrom-Json
+    $kurcalanmis.sayac = 43
+    $reddedildi = $false
+    try { [void](Open-DagitikZarf -Anahtarlar $k2 -Zarf $kurcalanmis) } catch { $reddedildi = $true }
+    if (-not $reddedildi) { $hatalar += 'v2 sayaci degistirilmis zarf reddedilmedi' }
+
+    $kv = $v.kayitV2
+    $kk = Get-DagitikKayitAnahtarlari -Kod $kv.kod -Tur ([int]$kv.tur)
+    $kontrol++
+    if ($kk.anaAnahtar -cne $kv.anaAnahtarBase64 -or $kk.kanal -cne $kv.kanal -or (ConvertTo-Hex $kk.sifre) -cne $kv.sifreHex -or
+        (ConvertTo-Hex $kk.imza) -cne $kv.imzaHex -or $kk.postaJetonu -cne $kv.postaJetonu) { $hatalar += 'v2 kayit anahtarlari' }
+    $kontrol++
+    $kz = New-DagitikZarf -Anahtarlar $kk -Cihaz $kv.istek.cihaz -Tur 'kayit' -Yon 'istek' -Sayac ([long]$kv.istek.sayac) -Zaman ([long]$kv.istek.zaman) `
+        -Metin $kv.istekMetni -SabitIv ([Convert]::FromBase64String($kv.istek.iv))
+    if ($kz.veri -cne $kv.istek.veri -or $kz.etiket -cne $kv.istek.etiket) { $hatalar += 'v2 kayit zarfi' }
+}
 
 if ($hatalar.Count -gt 0) {
     Write-Output "Protokol vektorleri UYUMSUZ ($($hatalar.Count) / $kontrol):"

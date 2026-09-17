@@ -6,6 +6,8 @@ struct IncomingRequest {
     var target: String
     var headers: [String: String]
     var body: Data
+    /// Karşı adres (IP metni). v1 uçları yalnızca yerel adreslere açıktır (Center.isLocal).
+    var remote: String = "127.0.0.1"
 }
 struct ServerResponse {
     var status: Int = 200
@@ -55,6 +57,15 @@ final class HTTPServer {
         }
         read(connection, buffer: Data(), sentContinue: false)
     }
+    static func remoteText(_ endpoint: NWEndpoint) -> String {
+        guard case .hostPort(let host, _) = endpoint else { return "" }
+        switch host {
+        case .ipv4(let address): return "\(address)"
+        case .ipv6(let address): return "\(address)"
+        case .name(let name, _): return name
+        @unknown default: return ""
+        }
+    }
     private func send(_ response: ServerResponse, to connection: NWConnection) {
         let body = (try? JSONSerialization.data(withJSONObject: response.json, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{\"ok\":false}".utf8)
         let header = "HTTP/1.1 \(response.status) Result\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n"
@@ -64,7 +75,7 @@ final class HTTPServer {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] chunk, _, complete, error in
             guard let self else { connection.cancel(); return }
             var bytes = buffer; bytes.append(chunk ?? Data())
-            if bytes.count > 600 * 1024 { self.send(.error(413, "Paket çok büyük."), to: connection); return }
+            if bytes.count > 1_150_000 { self.send(.error(413, "Paket çok büyük."), to: connection); return }
             guard let marker = bytes.range(of: Data("\r\n\r\n".utf8)) else {
                 if bytes.count > 32768 || complete || error != nil { self.send(.error(400, "HTTP başlığı geçersiz."), to: connection) }
                 else { self.read(connection, buffer: bytes, sentContinue: sentContinue) }
@@ -81,7 +92,8 @@ final class HTTPServer {
                 guard headers[key] == nil else { self.send(.error(400, "Yinelenen başlık."), to: connection); return }
                 headers[key] = value
             }
-            guard headers["transfer-encoding"] == nil, let length = Int(headers["content-length"] ?? "0"), (0...524288).contains(length) else { self.send(.error(400, "Content-Length gerekli; parça aktarımı desteklenmiyor."), to: connection); return }
+            // v2 zarfı en çok 1 MB (Windows merkeziyle aynı sınır)
+            guard headers["transfer-encoding"] == nil, let length = Int(headers["content-length"] ?? "0"), (0...1_048_576).contains(length) else { self.send(.error(400, "Content-Length gerekli; parça aktarımı desteklenmiyor."), to: connection); return }
             let available = bytes.count - marker.upperBound
             if available < length {
                 if complete || error != nil { self.send(.error(400, "Eksik gövde."), to: connection); return }
@@ -92,7 +104,7 @@ final class HTTPServer {
                 self.read(connection, buffer: bytes, sentContinue: continued); return
             }
             guard available == length else { self.send(.error(400, "İstek uzunluğu geçersiz."), to: connection); return }
-            let request = IncomingRequest(method: String(first[0]), target: String(first[1]), headers: headers, body: Data(bytes.suffix(length)))
+            let request = IncomingRequest(method: String(first[0]), target: String(first[1]), headers: headers, body: Data(bytes.suffix(length)), remote: Self.remoteText(connection.endpoint))
             Task { @MainActor in
                 let response = self.handler?(request) ?? .error(503, "Merkez hazır değil.")
                 self.queue.async { self.send(response, to: connection) }

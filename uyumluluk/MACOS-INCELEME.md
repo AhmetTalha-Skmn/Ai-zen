@@ -1,5 +1,9 @@
 # macOS sürümü — uyumluluk sözleşmesi ve inceleme listesi
 
+> **17.09:** Bu belge v1'i (yerel ağ, imzalı düz JSON) anlatır. Şifreli zarf, internet ve posta
+> kutusu için protokol v2: [PROTOKOL-V2.md](PROTOKOL-V2.md). v1 uçları artık yalnızca yerel ağ
+> adreslerinden kabul edilir.
+>
 > **Durum (16.09):** Mac sürümü yazıldı ve incelendi; kod ana deponun `macos/` klasöründe.
 > Bu listedeki maddelerin otomatik sınanabilenleri `macos/Tests/CalismaTakipTests/WindowsInteropTests.swift`
 > içinde; bulgular ve açık işler kökteki `DEVIR.md`'de.

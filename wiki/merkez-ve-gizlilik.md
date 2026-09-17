@@ -29,6 +29,22 @@ kullanmak isteğe bağlıdır; bağlı olmayan bilgisayar hiçbir yere veri gön
 Gönderim 5 dakikada bir yapılır. Merkez kapalıysa ya da ağ yoksa yerel takip durmaz;
 özetler bekler ve bağlantı gelince gönderilir.
 
+## Farklı ağdayken
+
+Merkez adresi iki biçimde olabilir; yönetici hangisini kullanacağını söyler:
+
+| Adres | Ne zaman |
+|---|---|
+| `http://192.168.1.20:8787` | Merkezle aynı ağdasın ya da merkez internete açılmış |
+| `https://posta.firma.com/k/...` | Farklı ağdasın ve merkez bir **posta kutusu** kullanıyor |
+
+- Aktarım **şifrelidir**: aradaki ağ ve posta kutusu sunucusu özetleri, kodu ve kuralları
+  okuyamaz, değiştiremez. Eşleşme kodu ağa hiç gönderilmez.
+- Posta kutusunda özetler merkez bilgisayarı açılana kadar bekler. Eşleşme sırasında ise
+  merkez bilgisayarı açık olmalıdır.
+- Kayıtta merkez diğer adreslerini de şifreli olarak bildirir: bilgisayar ofise dönünce
+  doğrudan bağlanır, dışarıdayken posta kutusunu kullanır. Seçim kendiliğinden yapılır.
+
 <!-- yalniz: windows -->
 ## Görmek ve kapatmak
 

@@ -70,8 +70,12 @@ listeleyen onay ekranını** kabul eder. Ancak o zaman:
 - Onay tarihi hem istemcide (`onay.json`) hem merkezde tutulur, panelde görünür.
 
 Kod tek kullanımlıktır, süresi dolunca geçersizdir ve merkez kodun kendisini
-değil PBKDF2 özetini saklar. Yanlış kod denemeleri 10 dakikalık pencerede
-sınırlanır.
+saklamaz. Yanlış kod denemeleri sınırlanır.
+
+Güncel istemci (protokol v2) kodu ağa **hiç göndermez**: kayıt isteği ve yanıtı
+koddan PBKDF2 ile türetilen anahtarla şifrelenir; merkez yalnızca koddan türetilen
+kanal kimliğini ve DPAPI ile korunmuş kayıt anahtarını saklar. Eski (v1) istemci
+kodu düz gönderir; merkez v1 uçlarını bu yüzden yalnızca yerel ağdan kabul eder.
 
 ## Ne gönderilir, ne gönderilmez
 
@@ -151,23 +155,50 @@ Panel ağ dinlemez ve uzaktan komut göndermez; yalnızca merkezde biriken
 .\kaldir.ps1 -Deneme          # hiçbir şey yapmadan ne yapacağını yaz
 ```
 
+## Farklı ağlardaki bilgisayarlar
+
+Tüm trafik **şifreli zarfla** taşınır (protokol v2, [PROTOKOL-V2.md](../uyumluluk/PROTOKOL-V2.md)):
+cihaz anahtarından türetilen ayrı anahtarlarla AES-256-CBC + HMAC-SHA256; zarfın başlık
+alanları (cihaz, işlem türü, yön, sayaç, zaman) imzanın içindedir. Aynı zarf üç yoldan gider:
+
+| Yol | Kurulum | İstemcinin gireceği adres |
+|---|---|---|
+| Yerel ağ / VPN | `.\ana-kurulum.ps1 -Kur` (varsayılan) | `http://192.168.1.20:8787` |
+| İnternet (port yönlendirme) | Modemde TCP 8787 → merkez, dinamik DNS, sonra `.\ana-kurulum.ps1 -Kur -InternetUrl http://ad.dinamikdns.net:8787` | `http://ad.dinamikdns.net:8787` |
+| Posta kutusu (port açılamıyorsa) | Kiralık Linux sunucu: [posta-sunucusu/README.md](../posta-sunucusu/README.md), sonra `.\posta-baglan.ps1 -PostaUrl https://posta.firma.com` | `https://posta.firma.com/k/<kutu>` |
+
+- `cihaz-ekle.ps1` kodla birlikte tanımlı adresleri yazar. Kayıtta merkez tüm adreslerini
+  şifreli yanıtla bildirir; sonradan eklenen adresi (ör. posta kutusu) kayıtlı cihazlar bir
+  sonraki doğrudan bağlantıda öğrenir.
+- İstemci her turda önce doğrudan adresleri dener (4 sn), ulaşamazsa posta kutusunu kullanır.
+  Posta kutusunda özetler merkez kapalıyken bekler; aynı günün eski özeti yenisiyle değişir.
+- Merkez çalışırken posta kutusunu dakikada bir (kayıt bekleyen kod varken 5 saniyede bir)
+  yoklar. Durum: `.\posta-baglan.ps1 -Durum`, `veri\posta-durum.json`.
+- Posta kutusu sunucusu zarfları açamaz; yalnızca erişim jetonlarının SHA-256 özetlerini
+  saklar. Jetonlar yalnızca HTTPS ile gider.
+
 ## Ağ sınırı ve güvenlik
 
-Bu sürüm **özel LAN ya da VPN** içindir. Merkez portunu internete yönlendirme;
-uzak cihazlar WireGuard, Tailscale veya kurum VPN'i üzerinden bağlanmalıdır.
-Aktarım düz HTTP'dir; kimlik doğrulama ve bütünlük HMAC-SHA256 ile sağlanır,
-fakat içerik şifreli değildir. İnternet üzerinde kullanım için HTTPS, sertifika
-ve imzalı dağıtım ayrıca kurulmalıdır.
-
-Merkez yalnızca imzalı `POST /v1/ozet` ve eşleşme kodlu `POST /v1/kayit`
-isteklerini kabul eder. Geç kalmış paketler günün daha yeni özetini ezmez.
-`saklamaGun` süresinden eski günlük arşiv otomatik silinir.
+- `/v2/zarf` her adresten kabul edilir; adres başına 10 dakikada 30 hatalı denemeden sonra 429.
+  Kural yazma zarflarında tekrar koruması (kayan sayaç penceresi) vardır; 30 günden eski ya da
+  15 dakikadan ileri tarihli zarf reddedilir.
+- Eski `/v1/*` uçları (imzalı ama şifresiz; v1 kaydında kod düz gider) **yalnızca yerel
+  adreslerden** kabul edilir: loopback, 10/8, 172.16/12, 192.168/16, 169.254/16,
+  100.64/10 (Tailscale), IPv6 ULA ve link-local. Merkez internete açılsa da v1 kapalı kalır.
+- `-InternetUrl` verilmedikçe güvenlik duvarı kuralı yalnızca Özel ağ profilindedir.
+- Geç kalmış paketler günün daha yeni özetini ezmez. `saklamaGun` süresinden eski günlük
+  arşiv otomatik silinir.
+- İçerik şifreli olsa da cihaz kimliği, işlem türü, boyut ve zamanlama ağda görünür.
 
 ## Dosyalar
 
 | Dosya | İşlev |
 |---|---|
-| `merkez-sunucu.ps1` | İmzalı özet ve kayıt isteklerini kabul eden dinleyici |
+| `merkez-sunucu.ps1` | Dinleyici: v2 şifreli zarf (her adres), v1 imzalı istekler (yerel ağ), posta kutusu yoklaması |
+| `Merkez-Posta.ps1` | Merkezin posta kutusu istemcisi ve kutuya bildirilen cihaz listesi |
+| `posta-baglan.ps1` | Merkezi bir posta kutusu sunucusuna bağlar (`-Durum`, `-Kapat`) |
+| `ana-kurulum.ps1` | Dinleme izni, güvenlik duvarı, merkez görevi; `-InternetUrl` ile internet erişimi |
+| `Istemci-Kanal.ps1` | İstemcinin v2 gönderimi: doğrudan adres seçimi, posta kutusu, yanıt işleme |
 | `merkez-panel.ps1` | Yönetici paneli (karşılaştırma, trend, cihaz ayarları, ortak kurallar, dışa aktarım) |
 | `Merkez-Ozet.ps1` | Özet/trend/gün toplamı/temizlik hesapları — panel ve testler aynı kodu kullanır |
 | `Merkez-Kural.ps1` | Ortak kural kümesi (okuma, karar işleme, silme), cihaz ayarı, merkez dosya kilidi |
@@ -182,6 +213,7 @@ isteklerini kabul eder. Geç kalmış paketler günün daha yeni özetini ezmez.
 | `kisayol.ps1` | Masaüstü ve Startup kısayolları |
 | `paket-olustur.ps1` | Kişisel verisiz kurulum ZIP'i üretir |
 | `test-dagitik.ps1` | İzole testler: kripto, kayıt akışı, sunucu, kurulum, kaldırma |
+| `test-kanal.ps1` | v2 zarf, doğrudan kayıt/gönderim ve posta kutusu üzerinden uçtan uca testler |
 
 
 Paket kişisel kurallar içermez. İlk kurulumda boş çalışma/yasak listeleri ve

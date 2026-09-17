@@ -1,0 +1,32 @@
+name: Posta kutusu sunucusu
+
+on:
+  push:
+    paths: ['posta-sunucusu/**', '.github/workflows/posta.yml']
+  pull_request:
+    paths: ['posta-sunucusu/**', '.github/workflows/posta.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: posta-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: PowerShell 7 (Ubuntu) API testleri
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      # VPS'teki çalışma ortamı: Linux + pwsh. Sunucu 127.0.0.1'de geçici klasörle çalışır.
+      - name: test-posta
+        shell: pwsh
+        run: |
+          $PSVersionTable.PSVersion.ToString()
+          ./posta-sunucusu/test-posta.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -125,4 +125,88 @@ final class AppTests: XCTestCase {
             XCTAssertEqual(center.handle(signed("/v1/kurallar", key: newKey)).status, 401)
         }
     }
+    /// Protokol v2: internetten şifreli kayıt ve gönderim, tekrar koruması; v1 uçları yalnız yerel ağda.
+    func testCenterV2EnvelopeFlowAndLocalOnlyV1() async throws {
+        try await MainActor.run {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("ct-test-" + UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let storage = try Storage(root: root)
+            var keys: [String: Data] = [:]
+            let credentials = CenterCredentials(read: { account in
+                guard let key = keys[account] else { throw AppError.message("Test key absent") }; return key
+            }, write: { keys[$1] = $0 }, remove: { keys[$0] = nil })
+            let center = try Center(storage: storage, credentials: credentials)
+            try center.setInternetURL("http://aizen.example.test:8787")
+            let internet = "203.0.113.9"
+            func post(_ envelope: [String: Any]) throws -> ServerResponse {
+                let body = try Wire.json(envelope)
+                return center.handle(IncomingRequest(method: "POST", target: "/v2/zarf", headers: [:], body: body, remote: "203.0.113.9"))
+            }
+
+            let code = try center.code(name: "Uzak Mac")
+            let enrollment = try Zarf.enrollment(code: code)
+            XCTAssertEqual(center.state.devices.first?.channel, enrollment.channel)
+            let wrong = try Zarf.enrollment(code: "ZZZZ-ZZZZ-ZZZZ")
+            let wrongRequest = try Zarf.seal(Data("{}".utf8), keys: wrong.keys, device: wrong.channel, kind: "kayit", direction: "istek", sequence: 1)
+            XCTAssertEqual(try post(wrongRequest).status, 403)
+
+            let requestBody = try Wire.json(["schemaVersion": 2, "onay": true, "cihazAdi": "Uzak", "kullanici": "test", "surum": "mac-2.0"])
+            let request = try Zarf.seal(requestBody, keys: enrollment.keys, device: enrollment.channel, kind: "kayit", direction: "istek", sequence: 1)
+            let response = try post(request)
+            XCTAssertEqual(response.status, 200, "v2 kayıt reddedildi: \(response.json)")
+            let reply = try Client.openReply(response.json, keys: enrollment.keys)
+            XCTAssertEqual(reply.status, 200)
+            let id = try XCTUnwrap(reply.body["cihazId"] as? String)
+            let key = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(reply.body["anahtar"] as? String)))
+            XCTAssertEqual(reply.body["ekAdresler"] as? [String], ["http://aizen.example.test:8787"])
+            XCTAssertEqual(try post(request).status, 403, "Kod tek kullanımlık")
+            let legacy = IncomingRequest(method: "POST", target: "/v1/kayit", headers: [:], body: try Wire.json(["schemaVersion": 1, "kod": code, "onay": true]), remote: "192.168.1.9")
+            XCTAssertEqual(center.handle(legacy).status, 403, "v2 ile kullanılan kod v1'de de geçersiz")
+
+            let deviceKeys = Zarf.keys(deviceKey: key)
+            var connection = Connection(server: "http://203.0.113.1:8787", deviceID: id, deviceName: "Uzak", consentAt: Date())
+            connection.sequence = 1
+            var day = Day(date: dayKey(Date())); day.workSeconds = 900
+            let summaryBody = try Wire.json(Wire.body(day: day, connection: connection, target: 240, pending: 0, now: Date()))
+            let summary = try post(try Zarf.seal(summaryBody, keys: deviceKeys, device: id, kind: "ozet", direction: "istek", sequence: 1))
+            XCTAssertEqual(summary.status, 200)
+            let summaryReply = try Client.openReply(summary.json, keys: deviceKeys)
+            XCTAssertEqual(summaryReply.status, 200)
+            XCTAssertNotNil(summaryReply.addresses, "Yanıt güncel adresleri taşır")
+            XCTAssertEqual(center.total(day: day.date), 15)
+
+            let ruleBody = try Wire.json(["schemaVersion": 1, "cihazId": id, "kararlar": [["oge": "Editor", "tur": "surec", "karar": "calisma"]]])
+            let denied = try post(try Zarf.seal(ruleBody, keys: deviceKeys, device: id, kind: "kural", direction: "istek", sequence: 10))
+            XCTAssertEqual(try Client.openReply(denied.json, keys: deviceKeys).status, 403, "İzinsiz kural yazımı zarfın içinde 403")
+            var device = try XCTUnwrap(center.state.devices.first(where: { $0.id == id }))
+            device.canWriteRules = true
+            try center.updateDevice(device)
+            let rule = try Zarf.seal(ruleBody, keys: deviceKeys, device: id, kind: "kural", direction: "istek", sequence: 5000)
+            let accepted = try post(rule)
+            XCTAssertEqual(accepted.status, 200)
+            XCTAssertEqual(try Client.openReply(accepted.json, keys: deviceKeys).body["islenen"] as? Int, 1)
+            XCTAssertEqual(try post(rule).status, 409, "Aynı kural zarfı tekrar işlenmez")
+            XCTAssertEqual(try post(try Zarf.seal(ruleBody, keys: deviceKeys, device: id, kind: "kural", direction: "istek", sequence: 3000)).status, 409, "Pencerenin gerisindeki sayaç")
+            XCTAssertEqual(try post(try Zarf.seal(ruleBody, keys: deviceKeys, device: id, kind: "kural", direction: "istek", sequence: 4990)).status, 200, "Pencere içinde geç gelen zarf")
+            var tampered = rule
+            tampered["sayac"] = 5001
+            XCTAssertEqual(try post(tampered).status, 401)
+            let old = try Zarf.seal(Data("{}".utf8), keys: deviceKeys, device: id, kind: "kurallar", direction: "istek", sequence: 6000, time: Int64(Date().timeIntervalSince1970) - 31 * 86400)
+            XCTAssertEqual(try post(old).status, 401, "30 günden eski zarf")
+
+            let timestamp = String(Int(Date().timeIntervalSince1970))
+            let headers = ["x-ct-cihaz": id, "x-ct-zaman": timestamp, "x-ct-imza": Crypto.signature(key: key, timestamp: timestamp, body: Data("/v1/kurallar".utf8))]
+            XCTAssertEqual(center.handle(IncomingRequest(method: "GET", target: "/v1/kurallar", headers: headers, body: Data(), remote: internet)).status, 403, "v1 internete kapalı")
+            XCTAssertEqual(center.handle(IncomingRequest(method: "GET", target: "/v1/kurallar", headers: headers, body: Data(), remote: "192.168.1.9")).status, 200, "v1 yerel ağda açık")
+            XCTAssertEqual(center.handle(IncomingRequest(method: "GET", target: "/health", headers: [:], body: Data(), remote: internet)).json["protokol"] as? Int, 2)
+        }
+    }
+    func testLocalAddressClassificationMatchesWindows() {
+        for local in ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.1", "192.168.1.5", "100.100.1.1", "169.254.3.4", "::1", "fd12::1", "fe80::1%en0", "::ffff:192.168.1.9"] {
+            XCTAssertTrue(Center.isLocal(local), local)
+        }
+        for remote in ["172.32.0.1", "100.128.0.1", "8.8.8.8", "203.0.113.9", "2001:4860::8888", "", "example.com"] {
+            XCTAssertFalse(Center.isLocal(remote), remote)
+        }
+    }
 }

@@ -23,7 +23,16 @@ $reddedilen = @(Get-ChildItem -LiteralPath (Join-Path $outbox 'reddedilen') -Fil
 
 Write-Output '=== Aizen - Merkez Bildirimi ==='
 Write-Output "Cihaz: $($ayar.cihazAdi) ($($ayar.cihazId))"
-Write-Output "Merkez: $($ayar.sunucuUrl)"
+$protokol = [int](Get-DagitikDeger $ayar 'protokol' 1)
+Write-Output "Merkez: $(Get-DagitikDeger $ayar 'sunucuUrl' '-')"
+if ($protokol -ge 2) {
+    $ek = @(Get-DagitikDeger $ayar 'ekAdresler' @())
+    if ($ek.Count -gt 0) { Write-Output "Diger adresler: $($ek -join ', ')" }
+    $posta = [string](Get-DagitikDeger $ayar 'postaUrl' '')
+    Write-Output "Posta kutusu: $(if ($posta) { $posta } else { '-' })"
+    Write-Output "Aktarim: sifreli zarf (v2), son kanal: $(Get-DagitikDeger $ayar 'sonKanal' '-')"
+}
+else { Write-Output 'Aktarim: v1 (yalnizca yerel ag; sifreli aktarim icin yeniden eslestirin)' }
 Write-Output "Etkin: $($ayar.aktif)"
 Write-Output "Ayrinti: $($ayar.ayrintiDuzeyi)"
 Write-Output "Son durum: $($ayar.sonDurum)"

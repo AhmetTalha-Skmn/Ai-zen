@@ -148,10 +148,10 @@ $grpMerkez.Controls.Add($chkBaglan)
 [void](Tema-Etiket $grpMerkez 'İşaretlemezsen bu bilgisayar tek başına çalışır, hiçbir yere veri göndermez.' 24 30 560 20 9 -Renk $TEMA.Soluk)
 [void](Tema-Etiket $grpMerkez 'Merkez adresi' 24 64 120 22 9.5)
 $txtSunucu = New-Object System.Windows.Forms.TextBox
-$txtSunucu.Location = (Tema-Konum 150 62); $txtSunucu.Size = (Tema-Boyut 300 26); $txtSunucu.Font = (Tema-Yazi 9.5)
+$txtSunucu.Location = (Tema-Konum 150 62); $txtSunucu.Size = (Tema-Boyut 440 26); $txtSunucu.Font = (Tema-Yazi 9.5)
 $txtSunucu.Text = 'http://'
 $grpMerkez.Controls.Add($txtSunucu)
-[void](Tema-Etiket $grpMerkez 'örnek: http://192.168.1.20:8787' 150 90 300 18 8.5 -Renk $TEMA.Soluk)
+[void](Tema-Etiket $grpMerkez 'aynı ağ: http://192.168.1.20:8787 · farklı ağ: https://posta.firma.com/k/...' 150 90 450 18 8.5 -Renk $TEMA.Soluk)
 [void](Tema-Etiket $grpMerkez 'Eşleşme kodu' 24 122 120 22 9.5)
 $txtKod = New-Object System.Windows.Forms.TextBox
 $txtKod.Location = (Tema-Konum 150 120); $txtKod.Size = (Tema-Boyut 220 28)
@@ -255,8 +255,12 @@ function Ileri-Git {
         }
         if (Baglanacak-Mi) {
             $url = $txtSunucu.Text.Trim().TrimEnd('/')
-            if ($url -notmatch '^https?://[^/\\]+(?::\d+)?$') {
-                [void][System.Windows.Forms.MessageBox]::Show("Merkez adresi http://sunucu:port biçiminde olmalı.`r`nÖrnek: http://192.168.1.20:8787", 'Kurulum', 'OK', 'Warning'); return
+            # Doğrudan merkez ya da posta kutusu (Ortak.ps1 ConvertFrom-DagitikAdres ile aynı biçim)
+            if ($url -cnotmatch '^[Hh][Tt][Tt][Pp][Ss]?://[^/\\\s?#@]+(/[Kk]/[0-9A-Fa-f]{16,64})?$') {
+                [void][System.Windows.Forms.MessageBox]::Show("Merkez adresi şu biçimlerden biri olmalı:`r`n  aynı ağ: http://192.168.1.20:8787`r`n  farklı ağ (posta kutusu): https://posta.firma.com/k/...", 'Kurulum', 'OK', 'Warning'); return
+            }
+            if ($url -cmatch '/[Kk]/' -and $url -cnotmatch '^[Hh][Tt][Tt][Pp][Ss]://' -and $url -cnotmatch '^[Hh][Tt][Tt][Pp]://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/') {
+                [void][System.Windows.Forms.MessageBox]::Show('Posta kutusu adresi https:// ile başlamalı.', 'Kurulum', 'OK', 'Warning'); return
             }
             if (($txtKod.Text -creplace '[^0-9A-Za-z]', '').Length -lt 8) {
                 [void][System.Windows.Forms.MessageBox]::Show('Eşleşme kodunu eksiksiz gir.', 'Kurulum', 'OK', 'Warning'); return

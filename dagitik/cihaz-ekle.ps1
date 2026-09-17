@@ -104,6 +104,7 @@ foreach ($cihazAdi in $adListesi) {
     if (-not (Test-DagitikCihazKimligi $kimlik)) {
         throw 'Cihaz kimligi yalnizca harf, rakam, tire ve alt cizgi icerebilir (3-64 karakter).'
     }
+    if (Test-DagitikKayitKanali $kimlik) { throw 'Bu cihaz kimligi bicimi kayit kanallarina ayrilmistir; baska bir kimlik secin.' }
     if ($null -ne $mevcut -and -not $KoduYenile) {
         throw "'$cihazAdi' zaten kayitli ($kimlik). Yeni kod icin -KoduYenile kullanin."
     }
@@ -111,6 +112,15 @@ foreach ($cihazAdi in $adListesi) {
     $kod = New-DagitikEslesmeKodu
     $tuz = Get-DagitikTuz
     $ozet = Get-DagitikKodOzeti -Kod (ConvertTo-DagitikKodNormal $kod) -Tuz $tuz
+    # v2 (sifreli kayit, internet ve posta kutusu): kodun kendisi degil, koddan turetilen
+    # ana anahtar bu kullaniciya bagli DPAPI ile saklanir; kayit tamamlaninca silinir.
+    $v2 = Get-DagitikKayitAnahtarlari -Kod $kod
+    $v2Alanlari = [ordered]@{
+        kayitKanaliV2 = $v2.kanal
+        kayitAnaAnahtarV2Korunmus = (Protect-DagitikAnahtar -Anahtar $v2.anaAnahtar -Amac "merkez-kayit:$kimlik")
+        postaKayitJetonOzeti = (Get-DagitikMetinOzeti $v2.postaJetonu)
+        postaKayitBitisUtc = ''
+    }
 
     if ($null -eq $mevcut) {
         $kayit = [ordered]@{
@@ -129,6 +139,7 @@ foreach ($cihazAdi in $adListesi) {
             onayUtc = ''
             eklenmeUtc = [DateTime]::UtcNow.ToString('o')
         }
+        foreach ($alan in $v2Alanlari.Keys) { $kayit[$alan] = $v2Alanlari[$alan] }
         $kayitlar += [pscustomobject]$kayit
     }
     else {
@@ -139,6 +150,7 @@ foreach ($cihazAdi in $adListesi) {
         Set-DagitikDeger $mevcut 'kayitTuzu' $tuz
         Set-DagitikDeger $mevcut 'kayitOzeti' $ozet
         Set-DagitikDeger $mevcut 'kayitBitisUtc' $bitisUtc.ToString('o')
+        foreach ($alan in $v2Alanlari.Keys) { Set-DagitikDeger $mevcut $alan $v2Alanlari[$alan] }
         if ($BasliklaraIzinVer) { Set-DagitikDeger $mevcut 'baslikIzinli' $true }
         if ($AlanAdlarinaIzinVer) { Set-DagitikDeger $mevcut 'alanAdiIzinli' $true }
         if ($KuralYazabilir) { Set-DagitikDeger $mevcut 'kuralYazabilir' $true }
@@ -159,12 +171,30 @@ Write-Output ("{0,-24} {1,-30} {2}" -f 'Cihaz', 'Kimlik', 'Kod')
 foreach ($satir in $uretilen) {
     Write-Output ("{0,-24} {1,-30} {2}" -f $satir.Ad, $satir.Kimlik, $satir.Kod)
 }
+$internetAdresi = ConvertFrom-DagitikAdres ([string](Get-DagitikDeger $merkez 'internetUrl' ''))
+$postaAdresi = ''
+$posta = Get-DagitikDeger $merkez 'posta' $null
+if ($null -ne $posta -and [bool](Get-DagitikDeger $posta 'aktif' $false) -and
+    [string](Get-DagitikDeger $posta 'kutu' '') -cmatch '^[0-9a-f]{16,64}$') {
+    $postaAdresi = ('{0}/k/{1}' -f ([string](Get-DagitikDeger $posta 'url' '')).TrimEnd('/'), [string]$posta.kutu)
+}
+
 Write-Output ''
-Write-Output "Merkez adresi : $SunucuUrl"
+Write-Output "Merkez adresi : $SunucuUrl   (ayni agdaki bilgisayarlar)"
+if ($null -ne $internetAdresi -and $internetAdresi.tur -eq 'dogrudan') {
+    Write-Output "Internet      : $($internetAdresi.adres)   (port yonlendirme)"
+}
+if ($postaAdresi) {
+    Write-Output "Posta kutusu  : $postaAdresi   (farkli agdaki bilgisayarlar)"
+}
 Write-Output "Gecerlilik    : $GecerlilikDakika dakika (son: $($bitisUtc.ToLocalTime().ToString('dd.MM.yyyy HH:mm')))"
 Write-Output ''
 Write-Output 'Kullanicinin yapacagi: paketi acip Kurulum-Kullanici.cmd calistirmak, merkez'
-Write-Output 'adresini ve kodu girmek, onay ekranini okuyup kabul etmek.'
+Write-Output 'adresini ve kodu girmek, onay ekranini okuyup kabul etmek. Kayitta diger adresler'
+Write-Output 'de sifreli olarak cihaza iletilir; cihaz ag degisince kendisi dogru adresi secer.'
+if ($postaAdresi) {
+    Write-Output 'Posta kutusuyla kayitta merkez sunucusu o sirada calisiyor olmalidir.'
+}
 Write-Output 'Kod tek kullanimliktir ve sure sonunda gecersiz olur. Yuz yuze ya da telefonla'
 Write-Output 'soyleyin; e-posta veya ortak klasorde birakmayin.'
 

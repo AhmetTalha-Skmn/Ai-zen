@@ -163,6 +163,12 @@ import TakipCore
             if let c = engine.state.connection {
                 LabeledContent("Merkez", value: c.server)
                 LabeledContent("Cihaz", value: c.deviceName)
+                if (c.protocolVersion ?? 1) >= 2 {
+                    LabeledContent("Aktarım", value: c.lastChannel == "posta" ? "Şifreli · posta kutusu" : "Şifreli · doğrudan")
+                    if let mailbox = c.mailbox { LabeledContent("Posta kutusu", value: mailbox) }
+                } else {
+                    LabeledContent("Aktarım", value: "v1 · yalnız yerel ağ (şifreli aktarım için yeniden bağlanın)")
+                }
                 LabeledContent("Son gönderim", value: c.lastSuccess?.formatted() ?? "Henüz yok")
                 LabeledContent("Son kural alımı", value: c.lastRuleSuccess?.formatted() ?? "Henüz yok")
                 LabeledContent("Bekleyen karar", value: String(engine.state.pending.count))
@@ -179,7 +185,7 @@ import TakipCore
                 Button(engine.busy ? "Bağlanıyor…" : "Merkeze bağlan") {
                     Task { await engine.connect(server: server, code: code, name: name, consent: consent); if engine.state.connection != nil { code = "" } }
                 }.disabled(!consent || code.isEmpty || engine.busy)
-                Text("Windows ve Mac merkezleri desteklenir. HTTP bağlantısını yalnız özel LAN/VPN üzerinde kullan.").font(.caption).foregroundStyle(.secondary)
+                Text("Aynı ağ: http://sunucu:8787 · Farklı ağ: https://posta-sunucusu/k/… Aktarım şifrelidir; eşleşme kodu ağa gönderilmez. Posta kutusuyla eşleşirken merkez bilgisayarı açık olmalı.").font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }
@@ -208,7 +214,8 @@ import TakipCore
                     perform { guard let port = UInt16(exactly: port) else { throw AppError.message("Port geçersiz.") }; try center.configure(enabled: !center.state.enabled, port: port, lan: lan, target: target) }
                 }
             }
-            Text("Ağ/port/hedef değişiklikleri başlatma sırasında uygulanır. LAN modu tüm yerel ağ arayüzlerinde dinler; modemden port yönlendirmesi yapma.").font(.caption).foregroundStyle(.secondary)
+            Text("Ağ/port/hedef değişiklikleri başlatma sırasında uygulanır. LAN modu tüm yerel ağ arayüzlerinde dinler. İnternetten yalnızca şifreli v2 istekleri kabul edilir.").font(.caption).foregroundStyle(.secondary)
+            RemoteAccessView(center: center)
             Picker("Görünüm", selection: $section) { Text("Cihazlar ve toplam").tag(0); Text("Ortak kurallar").tag(1) }.pickerStyle(.segmented)
             if section == 0 {
                 HStack {
@@ -235,6 +242,62 @@ import TakipCore
             }
             if !message.isEmpty { Text(message).foregroundStyle(.red) }
         }.padding(14).onAppear { port = Int(center.state.port); lan = center.state.lan; target = center.state.target }
+    }
+}
+/// Farklı ağlardaki cihazlar: port yönlendirme adresi ve posta kutusu (uyumluluk/PROTOKOL-V2.md).
+@MainActor struct RemoteAccessView: View {
+    @ObservedObject var center: Center
+    @State private var internetURL = ""
+    @State private var mailboxURL = "https://"
+    @State private var adminToken = ""
+    @State private var message = ""
+    @State private var working = false
+    private var mailboxAddress: String {
+        guard let mailbox = center.state.mailbox, mailbox.enabled else { return "" }
+        return mailbox.url + "/k/" + mailbox.box
+    }
+    var body: some View {
+        DisclosureGroup("Farklı ağlardaki cihazlar") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    TextField("İnternet adresi (port yönlendirme), ör. http://ad.dinamikdns.net:8787", text: $internetURL)
+                    Button("Kaydet") {
+                        do { try center.setInternetURL(internetURL); message = "" } catch { message = error.localizedDescription }
+                    }
+                }
+                HStack {
+                    TextField("Posta kutusu sunucusu, ör. https://posta.firma.com", text: $mailboxURL)
+                    SecureField("Yönetim jetonu", text: $adminToken).frame(width: 200)
+                    Button(working ? "Bağlanıyor…" : "Posta kutusuna bağlan") { connect() }.disabled(working || adminToken.isEmpty)
+                    if !mailboxAddress.isEmpty {
+                        Button("Kapat") {
+                            do { try center.disconnectMailbox(); message = "" } catch { message = error.localizedDescription }
+                        }
+                    }
+                }
+                if !mailboxAddress.isEmpty {
+                    Text("Farklı ağdaki cihazların gireceği adres: " + mailboxAddress).font(.callout).textSelection(.enabled)
+                }
+                if !center.mailboxStatus.isEmpty { Text(center.mailboxStatus).font(.caption).foregroundStyle(.secondary) }
+                Text("Posta kutusu şifreli zarfları taşır, içeriklerini okuyamaz. Merkez açıkken dakikada bir yoklanır; kapalıyken özetler kutuda bekler.").font(.caption).foregroundStyle(.secondary)
+                if !message.isEmpty { Text(message).foregroundStyle(.red) }
+            }.padding(.top, 6)
+        }
+        .onAppear {
+            internetURL = center.state.internetURL ?? ""
+            if let mailbox = center.state.mailbox { mailboxURL = mailbox.url }
+        }
+    }
+    private func connect() {
+        working = true
+        Task {
+            do {
+                _ = try await center.connectMailbox(url: mailboxURL, adminToken: adminToken)
+                adminToken = ""; message = ""
+                await center.pollMailbox(force: true)
+            } catch { message = error.localizedDescription }
+            working = false
+        }
     }
 }
 @MainActor struct CenterDeviceRow: View {
