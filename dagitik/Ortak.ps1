@@ -92,10 +92,10 @@ function Get-DagitikSha256 {
         Bir dosyanin SHA-256 ozetini kucuk harfli hexadecimal metin olarak verir.
 
     .DESCRIPTION
-        Get-FileHash, Windows PowerShell 5.1 bir PowerShell 7 modül yolunu
-        devraldığında uygun olmayan Microsoft.PowerShell.Utility modülünü bulup
-        yükleyemeyebilir. Bu nedenle paket ve test kodu modül otomatik
-        yüklemesine bağlı kalmadan .NET kripto API'sini kullanır.
+        Get-FileHash, Windows PowerShell 5.1 bir PowerShell 7 modul yolunu
+        devraldiginda uygun olmayan Microsoft.PowerShell.Utility modulunu bulup
+        yukleyemeyebilir. Bu nedenle paket ve test kodu modul otomatik
+        yuklemesine bagli kalmadan .NET kripto API'sini kullanir.
     #>
     param([Parameter(Mandatory = $true)][string]$Yol)
 

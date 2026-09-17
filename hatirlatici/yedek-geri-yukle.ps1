@@ -63,13 +63,32 @@ try {
     $kisaTurlar = @('takip.ps1', 'gunluk-rapor.ps1', 'baslangic.ps1', 'istemci-gonderici.ps1', 'yedek-al.ps1')
     $hOnEki = $h.TrimEnd('\') + '\'
     $gondericiYolu = Join-Path $kok 'dagitik\istemci-gonderici.ps1'
+    # Surec komut satirindaki yol 8.3 kisa adla da yazilmis olabilir (GitHub Actions'ta RUNNER~1):
+    # $kok GetFullPath'ten gectigi icin uzun addadir. Iki bicim de aranir; ayrica komut
+    # satirindaki .ps1 yollari GetFullPath ile uzun ada cevrilip karsilastirilir.
+    $onEkler = @($hOnEki)
+    $gondericiYollari = @($gondericiYolu)
+    try {
+        $fso = New-Object -ComObject Scripting.FileSystemObject
+        $onEkler += ($fso.GetFolder($h).ShortPath.TrimEnd('\') + '\')
+        if (Test-Path -LiteralPath $gondericiYolu -PathType Leaf) { $gondericiYollari += $fso.GetFile($gondericiYolu).ShortPath }
+    } catch { }
+    $bizimSurec = {
+        param([string]$KomutSatiri)
+        foreach ($o in $onEkler) { if ($KomutSatiri.IndexOf($o, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }
+        foreach ($g in $gondericiYollari) { if ($KomutSatiri.IndexOf($g, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }
+        foreach ($m in [regex]::Matches($KomutSatiri, '"([^"]+\.ps1)"|([^\s"]+\.ps1)')) {
+            $ham = $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value })
+            try { $tam = [IO.Path]::GetFullPath($ham) } catch { continue }
+            if ($tam.StartsWith($hOnEki, [StringComparison]::OrdinalIgnoreCase) -or $tam -ieq $gondericiYolu) { return $true }
+        }
+        return $false
+    }
     $sonBekleme = (Get-Date).AddSeconds(60)
     while ($true) {
         $surecler = @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
             $_.ProcessId -ne $PID -and $_.Name -match '^(powershell|pwsh|wscript)\.exe$' -and $_.CommandLine -and
-            $_.CommandLine -notmatch 'yedek-geri-yukle\.ps1' -and
-            ($_.CommandLine.IndexOf($hOnEki, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-             $_.CommandLine.IndexOf($gondericiYolu, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+            $_.CommandLine -notmatch 'yedek-geri-yukle\.ps1' -and (& $bizimSurec $_.CommandLine)
         })
         if ($surecler.Count -eq 0) { break }
         $engel = @()
