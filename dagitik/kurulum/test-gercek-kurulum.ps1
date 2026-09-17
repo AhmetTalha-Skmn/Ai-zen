@@ -59,11 +59,11 @@ try {
  Dogrula 'Gönderici görevi kuruldu' ($null -ne (Get-ScheduledTask -TaskName 'Calisma Takip Gonderici' -ErrorAction SilentlyContinue))
  Calistir (Join-Path $d 'istemci-gonderici.ps1') @('-HatirlaticiKlasoru',$h)
  Dogrula 'Merkez özeti aldı' (Test-Path (Join-Path $calisma 'veri\guncel\gercek-test-pc.json'))
- $once=(Get-FileHash (Join-Path $h 'kurallar.json')).Hash
+ $once=Get-DagitikSha256 (Join-Path $h 'kurallar.json')
  $paket=Join-Path $calisma 'paket'
  Expand-Archive -LiteralPath $PaketZip -DestinationPath $paket
  Calistir (Join-Path $paket 'Kurulum.ps1') @('-Rol','Kullanici','-Sessiz','-KurulumDizini',$KurulumDizini)
- Dogrula 'Güncelleme kuralları korudu' ($once -eq (Get-FileHash (Join-Path $h 'kurallar.json')).Hash)
+ Dogrula 'Güncelleme kuralları korudu' ($once -eq (Get-DagitikSha256 (Join-Path $h 'kurallar.json')))
  Dogrula 'Güncelleme merkez kaydını korudu' (Test-Path (Join-Path $h 'merkez.json'))
  Calistir (Join-Path $d 'kaldir.ps1') @('-UygulamaKok',$KurulumDizini,'-Onayla','-VeriyiDeSil')
  Dogrula 'Görevler kaldırıldı' (@(Get-ScheduledTask | Where-Object { $_.TaskName -like 'Calisma Takip*' }).Count -eq 0)

@@ -25,6 +25,22 @@ function Assert-CtNormalYol {
     return $tam
 }
 
+function Get-CtSha256 {
+    # Get-FileHash modül otomatik yüklemesine bağlıdır; yedek bütünlüğü bunun
+    # yerine tüm hedef Windows PowerShell sürümlerindeki .NET SHA-256 API'sini kullanır.
+    param([Parameter(Mandatory = $true)][string]$Yol)
+
+    $akim = [System.IO.File]::Open($Yol, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($akim))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $akim.Dispose()
+        $sha.Dispose()
+    }
+}
+
 function Test-CtVeriYedegi {
     param([string]$ZipYolu, [string]$Sahne)
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -100,7 +116,7 @@ function Write-CtYedekManifesti {
         $ad = $tam.Substring($kok.Length).Replace('\','/')
         if ($ad -eq 'YEDEK-BILGISI.txt') { continue }
         [void](Get-CtYedekHedefi 'C:\ct-kontrol' $ad)
-        $liste += [ordered]@{ yol=$ad; boyut=$f.Length; sha256=(Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+        $liste += [ordered]@{ yol=$ad; boyut=$f.Length; sha256=(Get-CtSha256 -Yol $f.FullName) }
     }
     $json = [ordered]@{surum=1;olusturmaUtc=[DateTime]::UtcNow.ToString('o');dosyalar=@($liste)} | ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText((Join-Path $Sahne 'YEDEK-MANIFEST.json'),$json,(New-Object Text.UTF8Encoding($true)))

@@ -367,9 +367,9 @@ try {
     Test-Esit 'Kurulum rolu kaydedildi' 'Kullanici' ([string](Get-DagitikDeger $bilgi3 'rol' ''))
     Test-Esit 'Paket surumu kaydedildi' '7' ([string](Get-DagitikDeger $bilgi3 'paketSurumu' ''))
 
-    Test-Esit 'Ilk kurulum notr kurallari olusturdu' (Get-FileHash (Join-Path $uygulama3 'hatirlatici\kurallar.varsayilan.json')).Hash (Get-FileHash (Join-Path $hedef3 'hatirlatici\kurallar.json')).Hash
-    Test-Esit 'Ilk kurulum notr ayarlari olusturdu' (Get-FileHash (Join-Path $uygulama3 'hatirlatici\ayarlar.varsayilan.json')).Hash (Get-FileHash (Join-Path $hedef3 'hatirlatici\ayarlar.json')).Hash
-    Test-Esit 'Ilk kurulum notr periyodu olusturdu' (Get-FileHash (Join-Path $uygulama3 'hatirlatici\periyot.varsayilan.json')).Hash (Get-FileHash (Join-Path $hedef3 'hatirlatici\periyot.json')).Hash
+    Test-Esit 'Ilk kurulum notr kurallari olusturdu' (Get-DagitikSha256 (Join-Path $uygulama3 'hatirlatici\kurallar.varsayilan.json')) (Get-DagitikSha256 (Join-Path $hedef3 'hatirlatici\kurallar.json'))
+    Test-Esit 'Ilk kurulum notr ayarlari olusturdu' (Get-DagitikSha256 (Join-Path $uygulama3 'hatirlatici\ayarlar.varsayilan.json')) (Get-DagitikSha256 (Join-Path $hedef3 'hatirlatici\ayarlar.json'))
+    Test-Esit 'Ilk kurulum notr periyodu olusturdu' (Get-DagitikSha256 (Join-Path $uygulama3 'hatirlatici\periyot.varsayilan.json')) (Get-DagitikSha256 (Join-Path $hedef3 'hatirlatici\periyot.json'))
     $korumaYollari = @('hatirlatici\ortak-sayac.json', 'hatirlatici\kural-outbox.json', 'dagitik\merkez-kurallar.json')
     foreach ($goreli in $korumaYollari) {
         [IO.File]::WriteAllText((Join-Path $hedef3 $goreli), '{"kullanici":true}')
@@ -401,7 +401,7 @@ try {
         $oz = Get-DagitikDeger $b 'ozellikler' $null
         return ('{0}/{1}/{2}' -f (Get-DagitikDeger $b 'kurulumTuru' ''), (Get-DagitikDeger $oz 'hatirlatmalar' ''), (Get-DagitikDeger $oz 'ekranKilidi' ''))
     }
-    $ayarHash3 = (Get-FileHash (Join-Path $hedef3 'hatirlatici\ayarlar.json')).Hash
+    $ayarHash3 = Get-DagitikSha256 (Join-Path $hedef3 'hatirlatici\ayarlar.json')
     Test-Esit 'Tur verilmeyen kurulum bireysel (hatirlatma ve kilit acik)' 'bireysel/True/True' (Get-TurOzeti)
     $turDurumlari = @(
         @('Sirket turu: ikisi kapali', @('-KurulumTuru', 'Sirket'), 'sirket/False/False'),
@@ -415,7 +415,7 @@ try {
         & $psExe -NoProfile -ExecutionPolicy Bypass -File $kurulumPs -Rol Kullanici -Sessiz -YalnizKopyala -KurulumDizini $hedef3 @($durum[1]) 2>$null | Out-Null
         Test-Esit $durum[0] $durum[2] (Get-TurOzeti)
     }
-    Test-Esit 'Tur degisiklikleri ayarlar.json''a dokunmadi' $ayarHash3 (Get-FileHash (Join-Path $hedef3 'hatirlatici\ayarlar.json')).Hash
+    Test-Esit 'Tur degisiklikleri ayarlar.json''a dokunmadi' $ayarHash3 (Get-DagitikSha256 (Join-Path $hedef3 'hatirlatici\ayarlar.json'))
     # Kurulum-Admin.cmd / Kurulum-Kullanici.cmd yeni kurulumda Sirket verir; eski kurulumu degistirmez
     $env:CT_KURULUM_TURU = 'Sirket'
     try {
@@ -522,20 +522,20 @@ try {
     Test-Esit 'Yalniz Windows guvenlik surecleri' (($beklenenSurecler | Sort-Object) -join ',') (($notr.aslaEngelleme | Sort-Object) -join ',')
     & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $acilan 'Kurulum.ps1') -Rol Admin -Sessiz -YalnizKopyala -KurulumDizini $hedef | Out-Null
     Test-Esit 'Gercek paketten admin kopyalama' 0 $LASTEXITCODE
-    Test-Esit 'Gercek paketten notr kurulum' (Get-FileHash $sablonYolu).Hash (Get-FileHash (Join-Path $hedef 'hatirlatici\kurallar.json')).Hash
+    Test-Esit 'Gercek paketten notr kurulum' (Get-DagitikSha256 $sablonYolu) (Get-DagitikSha256 (Join-Path $hedef 'hatirlatici\kurallar.json'))
     foreach ($sablonAdi in @('ayarlar', 'periyot')) {
-        Test-Esit "Gercek paketten notr $sablonAdi" (Get-FileHash (Join-Path $acilan "uygulama\hatirlatici\$sablonAdi.varsayilan.json")).Hash (Get-FileHash (Join-Path $hedef "hatirlatici\$sablonAdi.json")).Hash
+        Test-Esit "Gercek paketten notr $sablonAdi" (Get-DagitikSha256 (Join-Path $acilan "uygulama\hatirlatici\$sablonAdi.varsayilan.json")) (Get-DagitikSha256 (Join-Path $hedef "hatirlatici\$sablonAdi.json"))
     }
     $ayarDosyasi = Join-Path $hedef 'hatirlatici\ayarlar.json'
     [IO.File]::WriteAllText($ayarDosyasi, '{"hedef":75,"duraklat":""}')
-    $ayarOnce = (Get-FileHash $ayarDosyasi).Hash
+    $ayarOnce = Get-DagitikSha256 $ayarDosyasi
     $kural = Join-Path $hedef 'hatirlatici\kurallar.json'
     [IO.File]::WriteAllText($kural, '{"kullanici":"ozel"}')
-    $once = (Get-FileHash $kural).Hash
+    $once = Get-DagitikSha256 $kural
     & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $acilan 'Kurulum.ps1') -Rol Kullanici -Sessiz -YalnizKopyala -KurulumDizini $hedef | Out-Null
     Test-Esit 'Gercek paketten guncelleme' 0 $LASTEXITCODE
-    Test-Esit 'Gercek paketten kisisel kurallar bayt bazinda korundu' $once (Get-FileHash $kural).Hash
-    Test-Esit 'Gercek paketten kisisel ayarlar bayt bazinda korundu' $ayarOnce (Get-FileHash $ayarDosyasi).Hash
+    Test-Esit 'Gercek paketten kisisel kurallar bayt bazinda korundu' $once (Get-DagitikSha256 $kural)
+    Test-Esit 'Gercek paketten kisisel ayarlar bayt bazinda korundu' $ayarOnce (Get-DagitikSha256 $ayarDosyasi)
 }
 catch {
     $kalan++

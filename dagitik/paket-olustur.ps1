@@ -69,6 +69,22 @@ function Write-Utf8Bom {
     [System.IO.File]::WriteAllText($Yol, $Metin, $encoding)
 }
 
+function Get-PaketSha256 {
+    # Get-FileHash, Windows PowerShell 5.1 PowerShell 7'nin modül yolunu
+    # devraldığında yüklenemeyebilir. Paket bütünlüğü ortamdan bağımsız kalmalı.
+    param([Parameter(Mandatory = $true)][string]$Yol)
+
+    $akim = [System.IO.File]::Open($Yol, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($akim))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $akim.Dispose()
+        $sha.Dispose()
+    }
+}
+
 function Get-DosyaManifesti {
     param(
         [Parameter(Mandatory = $true)]
@@ -82,7 +98,7 @@ function Get-DosyaManifesti {
         $kayitlar += [ordered]@{
             yol    = $goreliYol
             boyut  = $dosya.Length
-            sha256 = (Get-FileHash -LiteralPath $dosya.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            sha256 = Get-PaketSha256 -Yol $dosya.FullName
         }
     }
 
@@ -246,7 +262,7 @@ try {
     Compress-Archive -Path (Join-Path $sahneKoku '*') -DestinationPath $CiktiYolu -Force
     Test-PaketIcerigi -ZipYolu $CiktiYolu
 
-    $hash = (Get-FileHash -LiteralPath $CiktiYolu -Algorithm SHA256).Hash.ToLowerInvariant()
+    $hash = Get-PaketSha256 -Yol $CiktiYolu
     $hashYolu = "$CiktiYolu.sha256"
     Write-Utf8Bom -Yol $hashYolu -Metin ("$hash  " + [System.IO.Path]::GetFileName($CiktiYolu) + "`r`n")
 
@@ -321,7 +337,7 @@ SourceFiles0=$sfxKoku
             if (-not (Test-Path -LiteralPath $exeYolu -PathType Leaf)) {
                 throw 'Tek dosya kurulum üretilemedi (iexpress).'
             }
-            $exeHash = (Get-FileHash -LiteralPath $exeYolu -Algorithm SHA256).Hash.ToLowerInvariant()
+            $exeHash = Get-PaketSha256 -Yol $exeYolu
             Write-Utf8Bom -Yol "$exeYolu.sha256" -Metin ("$exeHash  " + [System.IO.Path]::GetFileName($exeYolu) + "`r`n")
         }
     }

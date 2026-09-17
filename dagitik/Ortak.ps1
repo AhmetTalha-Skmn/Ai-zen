@@ -86,6 +86,30 @@ function Get-DagitikEntropi {
     finally { $sha.Dispose() }
 }
 
+function Get-DagitikSha256 {
+    <#
+    .SYNOPSIS
+        Bir dosyanin SHA-256 ozetini kucuk harfli hexadecimal metin olarak verir.
+
+    .DESCRIPTION
+        Get-FileHash, Windows PowerShell 5.1 bir PowerShell 7 modül yolunu
+        devraldığında uygun olmayan Microsoft.PowerShell.Utility modülünü bulup
+        yükleyemeyebilir. Bu nedenle paket ve test kodu modül otomatik
+        yüklemesine bağlı kalmadan .NET kripto API'sini kullanır.
+    #>
+    param([Parameter(Mandatory = $true)][string]$Yol)
+
+    $akim = [System.IO.File]::Open($Yol, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($akim))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $akim.Dispose()
+        $sha.Dispose()
+    }
+}
+
 function Initialize-DagitikDpapi {
     # Windows PowerShell 5.1 bazi oturumlarda System.Security derlemesini otomatik
     # yuklemez; DPAPI turunu kullanmadan once yuklemek gerekir.
